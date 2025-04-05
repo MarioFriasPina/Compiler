@@ -1,0 +1,3 @@
+int num;
+num = input();
+output(num * 2);

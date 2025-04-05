@@ -1,0 +1,11 @@
+int sum(int a, int b) {
+    return a + b;
+}
+
+void main() {
+    int x;
+    int y;
+    x = input();
+    y = input();
+    output(sum(x, y));
+}

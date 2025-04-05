@@ -1,0 +1,172 @@
+digraph finite_state_machine {
+    node [shape = doublecircle];
+    ENDFILE; ELSE_ACCEPT; IF_ACCEPT; INT_ACCEPT; RETURN_ACCEPT; VOID_ACCEPT;
+    WHILE_ACCEPT; PLUS_ACCEPT; MINUS_ACCEPT; STAR_ACCEPT; SLASH_ACCEPT;
+    LPAREN_ACCEPT; RPAREN_ACCEPT; LBRACKET_ACCEPT; RBRACKET_ACCEPT; LBRACE_ACCEPT; RBRACE_ACCEPT;
+    COMMA_ACCEPT; SEMICOLON_ACCEPT; LESS_ACCEPT; GREATER_ACCEPT; EQUAL_ACCEPT;
+    NOTEQUAL_ACCEPT; ASSIGN_ACCEPT; LESSEQUAL_ACCEPT; GREATEREQUAL_ACCEPT;
+    ID_ACCEPT; NUM_ACCEPT; COMMENT_ACCEPT;
+
+    node [shape = circle];
+
+    S -> S [label = "[\\s\\t\\n]"];
+
+    subgraph cluster_0 {
+        label = "one character";
+
+        S -> PLUS [label = "+"];
+        PLUS -> PLUS_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> MINUS [label = "-"];
+        MINUS -> MINUS_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> STAR [label = "*"];
+        STAR -> STAR_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> LPAREN [label = "("];
+        LPAREN -> LPAREN_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> RPAREN [label = ")"];
+        RPAREN -> RPAREN_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> LBRACKET [label = "["];
+        LBRACKET -> LBRACKET_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> RBRACKET [label = "]"];
+        RBRACKET -> RBRACKET_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> LBRACE [label = "{"];
+        LBRACE -> LBRACE_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> RBRACE [label = "}"];
+        RBRACE -> RBRACE_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> COMMA [label = ","];
+        COMMA -> COMMA_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> SEMICOLON [label = ";"];
+        SEMICOLON -> SEMICOLON_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        S -> ENDFILE [label = "$"];
+    }
+
+    subgraph cluster_1 {
+        label = "two characters";
+
+        S -> "!" [label = "!"];
+        "!" -> NOTEQUAL [label = "="];
+        NOTEQUAL -> NOTEQUAL_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+
+        S -> LESS [label = "<"];
+        LESS -> LESSEQUAL [label = "="];
+        LESS -> LESS_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        LESSEQUAL -> LESSEQUAL_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+
+        S -> GREATER [label = ">"];
+        GREATER -> GREATEREQUAL [label = "="];
+        GREATER -> GREATER_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        GREATEREQUAL -> GREATEREQUAL_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+
+        S -> ASSIGN [label = "="];
+        ASSIGN -> EQUAL [label = "="];
+        ASSIGN -> ASSIGN_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+        EQUAL -> EQUAL_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+    }
+
+    subgraph cluster_2 {
+        label = "numbers";
+
+        S -> NUM [label = "[0-9]"];
+        NUM -> NUM [label = "[0-9]"];
+        NUM -> NUM_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+    }
+
+    subgraph cluster_3 {
+        label = "comments";
+
+        S -> SLASH [label = "/"];
+        SLASH -> SLASH_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+
+        SLASH -> COMMENT [label = "*"];
+        COMMENT -> PREPARE_EXIT [label = "*"];
+        COMMENT -> COMMENT [label = "[^*$]"];
+        PREPARE_EXIT -> END_COMMENT [label = "/"];
+        PREPARE_EXIT -> COMMENT [label = "[^/*]"];
+        PREPARE_EXIT -> PREPARE_EXIT [label = "*"];
+
+        END_COMMENT -> COMMENT_ACCEPT [label = "[\\s\\t\\n\(\[\{[0-9][a-z][A-Z]$,;]"];
+    }
+
+    subgraph cluster_4 {
+        label = "identifiers";
+
+        S -> I [label = "i"]; // IDENTIFIER
+        I -> IF [label = "f"];
+        IF -> ID [label = "[a-z][A-Z]"];
+        IF -> IF_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        I -> IN [label = "n"]; // IDENTIFIER
+        I -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        I -> ID [label = "[^fn][a-z][A-Z]"];
+        IN -> INT [label = "t"];
+        IN -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        IN -> ID [label = "[^t][a-z][A-Z]"];
+        INT -> ID [label = "[a-z][A-Z]"];
+        INT -> INT_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        S -> E [label = "e"]; // IDENTIFIER
+        E -> EL [label = "l"]; // IDENTIFIER
+        E -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        E -> ID [label = "[^l][a-z][A-Z]"];
+        EL -> ELS [label = "s"]; // IDENTIFIER
+        EL -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        EL -> ID [label = "[^s][a-z][A-Z]"];
+        ELS -> ELSE [label = "e"];
+        ELS -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        ELS -> ID [label = "[^e][a-z][A-Z]"];
+        ELSE -> ID [label = "[a-z][A-Z]"];
+        ELSE -> ELSE_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        S -> R [label = "r"]; // IDENTIFIER
+        R -> RE [label = "e"]; // IDENTIFIER
+        R -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        R -> ID [label = "[^e][a-z][A-Z]"];
+        RE -> RET [label = "t"]; // IDENTIFIER
+        RE -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        RE -> ID [label = "[^t][a-z][A-Z]"];
+        RET -> RETU [label = "u"]; // IDENTIFIER
+        RET -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        RET -> ID [label = "[^u][a-z][A-Z]"];
+        RETU -> RETUR [label = "r"]; // IDENTIFIER
+        RETU -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        RETU -> ID [label = "[^r][a-z][A-Z]"];
+        RETUR -> RETURN [label = "n"];
+        RETUR -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        RETUR -> ID [label = "[^n][a-z][A-Z]"];
+        RETURN -> ID [label = "[a-z][A-Z]"];
+        RETURN -> RETURN_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        S -> V [label = "v"]; // IDENTIFIER
+        V -> VO [label = "o"]; // IDENTIFIER
+        V -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        V -> ID [label = "[^o][a-z][A-Z]"];
+        VO -> VOI [label = "i"]; // IDENTIFIER
+        VO -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        VO -> ID [label = "[^i][a-z][A-Z]"];
+        VOI -> VOID [label = "d"];
+        VOI -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        VOI -> ID [label = "[^d][a-z][A-Z]"];
+        VOID -> ID [label = "[a-z][A-Z]"];
+        VOID -> VOID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        S -> W [label = "w"]; // IDENTIFIER
+        W -> WH [label = "h"]; // IDENTIFIER
+        W -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        W -> ID [label = "[^h][a-z][A-Z]"];
+        WH -> WHI [label = "i"]; // IDENTIFIER
+        WH -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        WH -> ID [label = "[^i][a-z][A-Z]"];
+        WHI -> WHIL [label = "l"]; // IDENTIFIER
+        WHI -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        WHI -> ID [label = "[^l][a-z][A-Z]"];
+        WHIL -> WHILE [label = "e"];
+        WHIL -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+        WHIL -> ID [label = "[^e][a-z][A-Z]"];
+        WHILE -> ID [label = "[a-z][A-Z]"];
+        WHILE -> WHILE_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"];
+
+        S -> ID [label = "[^iervw][a-z][A-Z]"];
+        ID -> ID [label = "[a-z][A-Z]"];
+        ID -> ID_ACCEPT [label = "[+-*/!<>=()[]{},;$\\s\\t\\n$]"]; 
+    }
+
+}

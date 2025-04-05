@@ -1,0 +1,4 @@
+int x;
+x = 42;
+int y = x + 10;
+output(y);
