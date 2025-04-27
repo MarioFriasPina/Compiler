@@ -1,8 +1,11 @@
+/*
+ * This is a full program.
+ */
 int sum(int a, int b) {
     return a + b;
 }
 
-void main() {
+void main(void) {
     int x;
     int y;
     x = input();

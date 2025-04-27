@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "compiler.hpp"
 
 bool isacceptance(State state) {
     if (state == State::ENDFILE || (state >= State::ELSE_ACCEPT && state <= State::COMMENT_ACCEPT))
@@ -299,6 +299,14 @@ State get_state(State state, char c) {
             break;
         case State::VO:
             if (c == 'i')
+                state = State::VOI;
+            else if (isalpha(c))
+                state = State::ID;
+            else
+                state = accept_id.contains(c) ? State::ID_ACCEPT : State::ERROR;
+            break;
+        case State::VOI:
+            if (c == 'd')
                 state = State::VOID;
             else if (isalpha(c))
                 state = State::ID;
@@ -370,13 +378,15 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
     // The initial position of the token
     size_t start_pos = pos;
 
+    token.line = line;
+
     // Check if end of file has been reached
     if (str[pos] == '\0' || str[pos] == '$' || pos >= len) {
         token.token = TokenType::T_ENDFILE;
         token.tokenString = "$";
         ++pos;
         if (print)
-            token.print(line);
+            token.print();
         return token;
     }
 
@@ -393,7 +403,7 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
 
         // If the next state is an error, print the error
         if (next_state == State::ERROR) {
-            fprintf(stderr, ANSI_COLOR_RED "Line %lld: Error on %s formation:\n", line, state_names[state]); // Print the error
+            fprintf(stderr, ANSI_COLOR_RED "Line %lld: Error on %s formation:\n", line, state_names[state].c_str()); // Print the error
     
             size_t end_pos = strcspn(str + line_start, "\n"); // Find the end of the current line
 
@@ -408,7 +418,7 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
 
         state = next_state;
         //Update line
-        if (c == '\n') {
+        if (c == '\n' && state != State::INITIAL) {
             ++line;
             line_start = pos + 1;
         }
@@ -422,11 +432,12 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
     token.tokenString = std::string(str + start_pos, pos - start_pos);
 
     if (print) {
-        token.print(line);
+        token.print();
     }
     return token;
 }
 
+/*
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("Usage: %s input_file [-p]\n\t-p: do not print tokens\n", argv[0]);
@@ -485,3 +496,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
+*/

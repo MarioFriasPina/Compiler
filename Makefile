@@ -1,11 +1,11 @@
 CXX := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic
 
-SRC := lexer.cpp
+SRC := lexer.cpp parser.cpp
 OBJ := $(SRC:.cpp=.o)
 DEP := $(OBJ:.o=.d)
 
-TARGET := lexer
+TARGET := parser
 
 all: $(TARGET) clean
 

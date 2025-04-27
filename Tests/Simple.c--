@@ -1,4 +1,8 @@
-int x;
-x = 42;
-int y = x + 10;
-output(y);
+int main(void){
+    int x;
+    int y;
+
+    x = 42;
+    y = x + 10;
+    output(y);
+}
