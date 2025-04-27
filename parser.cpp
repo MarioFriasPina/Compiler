@@ -1,89 +1,97 @@
 #include "compiler.hpp"
 
-// Helper to get the current token
+/* Peek at the next token */
 Token peek(const std::vector<Token>& tokens, size_t &current) {
     if (current < tokens.size())
         return tokens[current];
     return tokens.back(); // Return last token if out of bounds
 }
 
-// Helper to advance to the next token
+/* Advance to the next token */
 Token advance_token(const std::vector<Token>& tokens, size_t &current) {
     if (current < tokens.size())
         current++;
     return peek(tokens, current);
 }
 
-// Helper to check if at end
-bool isAtEnd(const std::vector<Token>& tokens, size_t &current) {
-    return peek(tokens, current).token == TokenType::T_ENDFILE;
-}
-
-// Helper to check if a token is a terminal
+/* Check if a token is a terminal */
 bool isTerminal(std::string token) {
     return std::find(token_names.begin(), token_names.end(), token) != token_names.end();
 }
 
 AST parser(std::vector<Token> tokens, size_t &current, bool print) {
-    AST root = AST(TokenType::T_INITIAL, "Program"); // Root of the AST
+    std::stack<AST *> nodeStack; // Stack for the tree
     std::stack<std::string> stack; // Stack for the parser
+
+    AST root(TokenType::T_INITIAL, "PROGRAM", 0);
 
     // Push the starting symbols to the stack
     stack.push("$");
     stack.push("PROGRAM");
 
-    Token current_token = peek(tokens, current); // Get the current token
+    // Push the root node to the stack
+    nodeStack.push(&root);
+
+    // Get the first token
+    Token current_token = peek(tokens, current); 
 
     while (!stack.empty()) {
-        std::string top = stack.top(); // Get the top of the stack
-        stack.pop(); // Pop the top of the stack
+        std::string top = stack.top(); stack.pop();
+
+        AST *current_node = nodeStack.top(); nodeStack.pop();
+
+        // Check if at end
+        if (top == "$") break;
 
         // Ignore comments
         if (current_token.token == TokenType::T_COMMENT) {
             current_token = advance_token(tokens, current);
         }
 
-        if (top == "$") {
-            if (current_token.token == TokenType::T_ENDFILE) {
-                return root;
-            } else {
-                // Error, expected $
-                printf("Expected $ at end of file\n");
-                return root;
-            }
-        }
-
-        if (isTerminal(top)) { // Terminal
+        // Check if the top of the stack is a terminal
+        if (isTerminal(top)) {
+            // Check if the top of the stack is the current token
             if (top == token_names[current_token.token]) {
+
+                // Fill current node with the token info
+                current_node->type = current_token.token;
+                current_node->value = current_token.tokenString;
+                
                 advance_token(tokens, current);
                 current_token = peek(tokens, current);
             } else {
                 // Error, expected terminal
-                fprintf(stderr, "Line %d :Expected %s, got %s\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
-                return root;
+                fprintf(stderr, "Line %d : Expected %s, got %s\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
+                return AST(TokenType::T_ERROR, "", 0);
             }
-        } else { // Non-terminal
+        }
+        // Check if the top of the stack is a non-terminal
+        else {
+            // Get the production rule
             auto entry = parsing_table.find(std::make_pair(top, current_token.token));
-            if (entry != parsing_table.end()) {
-                const std::vector<std::string>& production = entry->second;
 
-                if (production.size() != 0) { // If the production is not empty
-                    for (auto it = production.rbegin(); it != production.rend(); it++) {
-                        stack.push(*it);
-                    }
-                }
-            } else {
-                // Error, expected non-terminal
-                fprintf(stderr, "Line %d :%s -> %s not found on parsing table\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
-                return root;
+            if (entry == parsing_table.end()) {
+                // Error, no production rule found for the current token and non-terminal
+                fprintf(stderr, "Line %d : %s -> %s not found on parsing table\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
+                return AST(TokenType::T_ERROR, "", 0);
             }
-                    
+
+            const std::vector<std::string>& production = entry->second;
+
+            // Create the children of the current node
+            for (auto &sym : production) {
+                current_node->children.emplace_back(AST(TokenType::T_ERROR, sym, current_node->level + 1));
+            }
+
+            // Push to stack
+            for (int i = int(production.size()) - 1; i >= 0; i--) {
+                stack.push(production[i]);
+                nodeStack.push(&current_node->children[i]);
+            }             
         }
     }
 
-    if (print) {
-        root.print();
-    }
+    if (print) root.print();
 
     return root;
 }

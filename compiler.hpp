@@ -536,12 +536,21 @@ struct AST {
     std::vector<AST> children; // The children of the AST node
     TokenType type; // The type of the AST node
     std::string value; // The value of the AST node
+    int level;
 
-    AST(TokenType type, std::string value) : type(type), value(value) {}
-    AST() : type(TokenType::T_ERROR), value("") {}
+    AST(TokenType type, std::string value, int level) : type(type), value(value), level(level) {}
+    AST() : type(TokenType::T_ERROR), value(""), level(0) {}
 
+    /**
+     * Prints the AST node in a tree-like structure.
+     * Indents according to the level of the node.
+     * Prints the type and value of the node.
+     * Recursively prints all child nodes.
+     */
     void print() {
+        for (int i = 0; i < level; i++) printf("    ");
         printf("%s : %s\n", token_names[type].c_str(), value.c_str());
+
         for (auto &child : children) child.print();
     }
 };
