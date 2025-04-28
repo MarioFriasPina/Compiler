@@ -1,5 +1,3 @@
-#pragma once
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -273,13 +271,14 @@ struct Token {
     TokenType token; // token type
     std::string tokenString; // token string
     int line; // line number
+    int column; // column number
 
-    Token(TokenType token, char *tokenString, int line) : token(token), tokenString(tokenString), line(line) {}
-    Token() : token(TokenType::T_ERROR), tokenString(""), line(0) {}
+    Token(TokenType token, char *tokenString, int line, int col) : token(token), tokenString(tokenString), line(line), column(col) {}
+    Token() : token(TokenType::T_ERROR), tokenString(""), line(0), column(0) {}
 
     void print() {
         if (token == TokenType::T_COMMENT) return;
-        printf("Line %d : %s : %s\n", line, token_names[token].c_str(), tokenString.c_str());
+        printf("%d %s : %s\n", line, token_names[token].c_str(), tokenString.c_str());
     }
 };
 
@@ -531,15 +530,19 @@ static std::unordered_map<std::pair<std::string,TokenType>, std::vector<std::str
     { {"ARG_LIST'", T_RPAREN}, {} }
 };
 
+// Synchronization set
+// Safe tokens are tokens that can be safely landed on after an error
+static const std::unordered_set<TokenType> safe_tokens = {T_SEMICOLON, T_RBRACE, T_ENDFILE};
+
 // Abstract Syntax Tree
 struct AST {
     std::vector<AST> children; // The children of the AST node
     TokenType type; // The type of the AST node
     std::string value; // The value of the AST node
-    int level;
+    int line; // The line number of the AST node
 
-    AST(TokenType type, std::string value, int level) : type(type), value(value), level(level) {}
-    AST() : type(TokenType::T_ERROR), value(""), level(0) {}
+    AST(TokenType type, std::string value, int line) : type(type), value(value), line(line) {}
+    AST() : type(TokenType::T_ERROR), value(""), line(-1) {}
 
     /**
      * Prints the AST node in a tree-like structure.
@@ -547,11 +550,37 @@ struct AST {
      * Prints the type and value of the node.
      * Recursively prints all child nodes.
      */
-    void print() {
-        for (int i = 0; i < level; i++) printf("    ");
-        printf("%s : %s\n", token_names[type].c_str(), value.c_str());
+    void print(int level = 0) {
+        for (int i = 0; i < level; i++) printf("  "); // Indent according to the level of the node
+        printf("%d %s : %s\n", line, token_names[type].c_str(), value.c_str()); // Print the type and value of the node
 
-        for (auto &child : children) child.print();
+        for (AST child : children) { // Recursively print all child nodes
+            child.print(level + 1);
+        }
+    }
+
+    /**
+     * Prints the AST node in a tree-like structure.
+     * Indents according to the level of the node.
+     * Prints the type and value of the node.
+     * Recursively prints only the terminal nodes.
+     */
+    void pretty_print(int indent = 0) {
+        if (children.empty() && type != TokenType::T_ERROR) { // If the node is a terminal node
+            for (int i = 0; i < indent; i++) printf("  "); // Indent according to the level of the node
+            printf("%d %s : %s\n", line, token_names[type].c_str(), value.c_str()); // Print the type and value of the node
+        }
+
+        // Indent if you find a non-terminal node that has children
+        if (value == "DECLARATION" || value == "PARAM" || value == "VAR_DECLARATION" || value == "SELECTION_STMT" || value == "ITERATION_STMT" || value == "RETURN_STMT" || value == "EXPRESSION_STMT"){
+            for (int i = 0; i < indent; i++) printf("    "); // Indent according to the level of the node
+            printf("%d %s\n", line, value.c_str()); // Print the type and value of the node
+            ++indent;
+        }
+
+        for (AST child : children) { // Recursively print all child nodes
+            child.pretty_print(indent);
+        }
     }
 };
 

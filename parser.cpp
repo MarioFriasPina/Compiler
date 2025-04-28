@@ -23,7 +23,7 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
     std::stack<AST *> nodeStack; // Stack for the tree
     std::stack<std::string> stack; // Stack for the parser
 
-    AST root(TokenType::T_INITIAL, "PROGRAM", 0);
+    AST root(TokenType::T_INITIAL, "PROGRAM", -1);
 
     // Push the starting symbols to the stack
     stack.push("$");
@@ -33,7 +33,10 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
     nodeStack.push(&root);
 
     // Get the first token
-    Token current_token = peek(tokens, current); 
+    Token current_token = peek(tokens, current);
+
+    // Check if there are any errors
+    std::vector<std::string> errors;
 
     while (!stack.empty()) {
         std::string top = stack.top(); stack.pop();
@@ -56,13 +59,13 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                 // Fill current node with the token info
                 current_node->type = current_token.token;
                 current_node->value = current_token.tokenString;
+                current_node->line = current_token.line;
                 
-                advance_token(tokens, current);
-                current_token = peek(tokens, current);
+                current_token = advance_token(tokens, current);
             } else {
-                // Error, expected terminal
-                fprintf(stderr, "Line %d : Expected %s, got %s\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
-                return AST(TokenType::T_ERROR, "", 0);
+                // Print error
+                errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected " + top);
+                continue;
             }
         }
         // Check if the top of the stack is a non-terminal
@@ -71,16 +74,38 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
             auto entry = parsing_table.find(std::make_pair(top, current_token.token));
 
             if (entry == parsing_table.end()) {
-                // Error, no production rule found for the current token and non-terminal
-                fprintf(stderr, "Line %d : %s -> %s not found on parsing table\n", current_token.line, top.c_str(), token_names[current_token.token].c_str());
-                return AST(TokenType::T_ERROR, "", 0);
+                std::vector<TokenType> expected;
+
+                // Get the expected tokens from the parsing table
+                for (auto &kv : parsing_table) {
+                    if (kv.first.first == top) {
+                        expected.push_back(kv.first.second);
+                    }
+                }
+
+                errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected one of: ");
+                for (size_t i = 0; i < expected.size(); i++) {
+                    errors.back() += token_names[expected[i]];
+                    if (i < expected.size() - 1) errors.back() += ", ";
+                }
+                errors.back() += "\n";
+
+                // Skip to the next safe token
+                while (current_token.token != TokenType::T_ENDFILE && safe_tokens.count(current_token.token) == 0)
+                    current_token = advance_token(tokens, current);
+
+                // Drop the bad tokens
+                stack.pop();
+                nodeStack.pop();
+
+                continue;
             }
 
             const std::vector<std::string>& production = entry->second;
 
             // Create the children of the current node
             for (auto &sym : production) {
-                current_node->children.emplace_back(AST(TokenType::T_ERROR, sym, current_node->level + 1));
+                current_node->children.emplace_back(AST(TokenType::T_ERROR, sym, current_token.line));
             }
 
             // Push to stack
@@ -91,7 +116,18 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
         }
     }
 
-    if (print) root.print();
+    if (print) {
+        //root.print();
+        root.pretty_print();
+
+        if (!errors.empty()) {
+            printf(ANSI_COLOR_RED);
+            for (auto &error : errors) {
+                printf("%s", error.c_str());
+            }
+            printf(ANSI_COLOR_RESET);
+        }
+    }
 
     return root;
 }
@@ -134,7 +170,7 @@ int main(int argc, char **argv) {
     // Current line start
     size_t line_start = 0;
     // Current line
-    size_t line = 0;
+    size_t line = 1;
 
     // Token vector
     std::vector<Token> tokens;

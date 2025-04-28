@@ -378,12 +378,12 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
     // The initial position of the token
     size_t start_pos = pos;
 
-    token.line = line;
-
     // Check if end of file has been reached
     if (str[pos] == '\0' || str[pos] == '$' || pos >= len) {
         token.token = TokenType::T_ENDFILE;
         token.tokenString = "$";
+        token.line = line;
+        token.column = pos - line_start;
         ++pos;
         if (print)
             token.print();
@@ -391,10 +391,14 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
     }
 
     while (!isacceptance(state)) {
-        // The current character
-        char c = str[pos];
+        // Update line
+        if (str[pos] == '\n' && State::INITIAL == state) {
+            ++line;
+            line_start = pos + 1;
+        }
+
         // The possible next state
-        State next_state = get_state(state, c);
+        State next_state = get_state(state, str[pos]);
 
         // If the state is the initial state, update the start position
         if (state == State::INITIAL) {
@@ -404,12 +408,14 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
         // If the next state is an error, print the error
         if (next_state == State::ERROR) {
             fprintf(stderr, ANSI_COLOR_RED "Line %lld: Error on %s formation:\n", line, state_names[state].c_str()); // Print the error
-    
-            size_t end_pos = strcspn(str + line_start, "\n"); // Find the end of the current line
 
+            // Find the end of the current line
+            size_t end_pos = pos;
+            while (str[end_pos] != '\n' && str[end_pos] != '$' && end_pos < len)
+                ++end_pos;
 
-            fprintf(stderr, "%.*s\n", (int)end_pos, str + line_start); // Print the current line            
-            fprintf(stderr, "%*c\n" ANSI_COLOR_RESET, (int)(pos - line_start),'^'); // Print the position of the error with a caret
+            fprintf(stderr, "%.*s\n", (int)(end_pos - line_start), str + line_start); // Print the current line
+            fprintf(stderr, "%*c\n" ANSI_COLOR_RESET, (int)(pos - line_start), '^'); // Print the position of the error with a caret
 
             token.token = TokenType::T_ERROR;
             token.tokenString = std::string(str + start_pos, pos - start_pos);
@@ -417,11 +423,6 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
         }
 
         state = next_state;
-        //Update line
-        if (c == '\n' && state != State::INITIAL) {
-            ++line;
-            line_start = pos + 1;
-        }
 
         // Update the current position
         ++pos;
@@ -430,6 +431,8 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
 
     token.token = static_cast<TokenType>(state);
     token.tokenString = std::string(str + start_pos, pos - start_pos);
+    token.line = line;
+    token.column = pos - line_start;
 
     if (print) {
         token.print();
