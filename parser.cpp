@@ -19,11 +19,50 @@ bool isTerminal(std::string token) {
     return std::find(token_names.begin(), token_names.end(), token) != token_names.end();
 }
 
+/**
+ * Recursively traverse the AST and prune it according to the following rules:
+ *   * Drop unwanted leaf terminals entirely.
+ *   * If this non-terminal is in your drop-set, splice its children in.
+ *   * Collapse any node with exactly one child.
+ */
+void prune(AST *node) {
+    // Recurse into children, build a new “kept” list
+    std::vector<AST> kept;
+    kept.reserve(node->children.size());
+
+    for (auto& child : node->children) {
+        prune(&child);
+
+        // Drop unwanted leaf terminals entirely
+        if (child.children.empty() && dropTerminals.count(child.type))
+            continue;
+
+        // If this non‑terminal is in your drop‑set, splice its children in
+        if (dropNonTerminals.count(child.value)) {
+            for (auto& grand : child.children) {
+                kept.push_back(std::move(grand));
+            }
+        }
+        else
+            kept.push_back(std::move(child));
+    }
+
+    // Replace the old children list
+    node->children = std::move(kept);
+
+    // Collapse any node with exactly one child
+    if (node->children.size() == 1) {
+        // move the single child up into this node
+        AST single = std::move(node->children[0]);
+        *node = std::move(single);
+    }
+}
+
 AST parser(std::vector<Token> tokens, size_t &current, bool print) {
     std::stack<AST *> nodeStack; // Stack for the tree
     std::stack<std::string> stack; // Stack for the parser
 
-    AST root(TokenType::T_INITIAL, "PROGRAM", -1);
+    AST root(TokenType::T_INITIAL, "PROGRAM", 0);
 
     // Push the starting symbols to the stack
     stack.push("$");
@@ -36,7 +75,7 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
     Token current_token = peek(tokens, current);
 
     // Check if there are any errors
-    std::vector<std::string> errors;
+    //std::vector<std::string> errors;
 
     while (!stack.empty()) {
         std::string top = stack.top(); stack.pop();
@@ -64,8 +103,9 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                 current_token = advance_token(tokens, current);
             } else {
                 // Print error
-                errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected " + top);
-                continue;
+                printf("Line %d: unexpected token %s, expected %s\n", current_token.line, token_names[current_token.token].c_str(), top.c_str());
+                //errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected " + top);
+                return root;
             }
         }
         // Check if the top of the stack is a non-terminal
@@ -73,6 +113,7 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
             // Get the production rule
             auto entry = parsing_table.find(std::make_pair(top, current_token.token));
 
+            // Check if the production rule exists
             if (entry == parsing_table.end()) {
                 std::vector<TokenType> expected;
 
@@ -83,6 +124,14 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                     }
                 }
 
+                printf("Line %d: unexpected token %s, expected one of: ", current_token.line, token_names[current_token.token].c_str());
+                for (size_t i = 0; i < expected.size(); i++) {
+                    printf("%s", token_names[expected[i]].c_str());
+                    if (i < expected.size() - 1) printf(", ");
+                }
+                printf("\n");
+
+                /*
                 errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected one of: ");
                 for (size_t i = 0; i < expected.size(); i++) {
                     errors.back() += token_names[expected[i]];
@@ -97,8 +146,9 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                 // Drop the bad tokens
                 stack.pop();
                 nodeStack.pop();
+                */
 
-                continue;
+                return root;
             }
 
             const std::vector<std::string>& production = entry->second;
@@ -116,89 +166,11 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
         }
     }
 
-    if (print) {
-        //root.print();
-        root.pretty_print();
+    // Prune the tree, to remove unnecessary nodes
+    prune(&root);
 
-        if (!errors.empty()) {
-            printf(ANSI_COLOR_RED);
-            for (auto &error : errors) {
-                printf("%s", error.c_str());
-            }
-            printf(ANSI_COLOR_RESET);
-        }
-    }
+    if (print)
+        root.print();
 
     return root;
-}
-
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: %s input_file [-p]\n\t-p: print tokens\n", argv[0]);
-        return 1;
-    }
-
-    bool toprint = false;
-
-    if (argc > 2) {
-        for (int i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-p") == 0) {
-                toprint = true;
-            }
-        }
-    }
-
-    std::ifstream file(argv[1]);
-
-    if (!file.is_open()) {
-        printf("Failed to open file %s\n", argv[1]);
-        return 1;
-    }
-
-    // Read the file into a string
-    std::string buffer((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
-
-    file.close();
-
-    // Add a $ at the end of the string
-    buffer += '$';
-
-    // Length of string
-    size_t len = buffer.length();
-    // Current position
-    size_t i = 0;
-    // Current line start
-    size_t line_start = 0;
-    // Current line
-    size_t line = 1;
-
-    // Token vector
-    std::vector<Token> tokens;
-
-    // Loop through the string and get tokens
-    while (i < len) {
-        Token token = getToken(i, len, buffer.c_str(), line_start, line, false);
-
-        // If the token is not an error, update the current position
-        if (token.token == TokenType::T_ERROR) {
-            // Skip to the end of the line, or the end of the file
-            while (buffer[i] != '\n' && buffer[i] != '$')
-                ++i;
-            // Update the line number
-            ++line;
-            // Update the line start
-            line_start = i;
-        }
-        else {
-            // Add the token to the vector
-            tokens.push_back(token);
-        }
-    }
-
-    size_t current = 0; // Current token index
-
-    // Parse the tokens
-    AST root = parser(tokens, current, toprint);
-
-    return 0;
 }

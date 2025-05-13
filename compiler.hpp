@@ -65,7 +65,7 @@ enum TokenType {
     T_PLUS, // +
     T_MINUS, // -
     T_STAR, // *
-    T_SLASH, // / --------------
+    T_SLASH, // /
     T_LPAREN, // (
     T_RPAREN, // )
     T_LBRACKET, // [
@@ -78,7 +78,7 @@ enum TokenType {
     T_GREATER, // >
     T_EQUAL, // ==
     T_NOTEQUAL, // !=
-    T_ASSIGN, // = ---------------
+    T_ASSIGN, // =
     T_LESSEQUAL, // <=
     T_GREATEREQUAL, // >=
     T_ID, // identifier
@@ -551,8 +551,14 @@ struct AST {
      * Recursively prints all child nodes.
      */
     void print(int level = 0) {
-        for (int i = 0; i < level; i++) printf("  "); // Indent according to the level of the node
-        printf("%d %s : %s\n", line, token_names[type].c_str(), value.c_str()); // Print the type and value of the node
+        if (type != TokenType::T_ERROR && type != TokenType::T_INITIAL) {
+            for (int i = 0; i < level; i++) printf("  "); // Indent according to the level of the node
+            printf("%d %s : %s\n", line, token_names[type].c_str(), value.c_str()); // Print the type and value of the node
+        }
+        else {
+            for (int i = 0; i < level; i++) printf("  "); // Indent according to the level of the node
+            printf("%d %s\n", line, value.c_str());
+        }
 
         for (AST child : children) { // Recursively print all child nodes
             child.print(level + 1);
@@ -586,3 +592,142 @@ struct AST {
 
 // Parser function
 AST parser(std::vector<Token> tokens, size_t &current, bool print = true);
+
+// AST pruning function
+void prune(AST *node);
+
+static const std::unordered_set<std::string> dropNonTerminals = {
+    "DECLARATION_LIST", "DECLARATION_LIST'", "DECLARATION'", "LOCAL_DECLARATIONS", "VAR_DECLARATION'", "PARAMS", "PARAM_LIST", "PARAM_LIST'", "PARAM'",
+    "STATEMENT_LIST", "STATEMENT_LIST'", "STATEMENT'", "SELECTION_STMT'", "RETURN_STMT'", "EXPRESSION'", "RELOP", "ADDITIVE_EXPRESSION'",
+    "ADDOP", "TERM'", "MULOP", "FACTOR'", "ARGS", "ARG_LIST", "ARG_LIST'",
+};
+
+static const std::unordered_set<TokenType> dropTerminals = {
+    T_SEMICOLON, T_COMMA, T_ENDFILE
+};
+
+/* Semantic Analyzer */
+
+struct Symbol {
+    std::string name;
+    std::string type;
+    int line;
+
+    // Specific for arrays
+    size_t size = 0;
+
+    // Specific for functions
+    std::vector<std::string> args;
+
+    Symbol() {}
+    Symbol(std::string name, std::string type, int line) : name(name), type(type), line(line) {}
+};
+
+/* Symbol Table */
+struct SymbolTable {
+    std::string name;
+    std::unordered_map<std::string, Symbol> symbols; // The symbols in the symbol table
+
+    std::vector<SymbolTable> children; // The children of the symbol table
+    SymbolTable *parent; // The parent of the symbol table
+
+    int accessed = 0; // The number of times the symbol table has been accessed
+
+    SymbolTable(std::string name) : name(name), parent(NULL) {}
+    SymbolTable(std::string name, SymbolTable *parent) : name(name), parent(parent) {}
+
+    /**
+     * Checks if a symbol exists in the symbol table
+     *
+     * @param name The name of the symbol to check
+     * @return true if the symbol exists, false otherwise
+     */
+    bool exists(std::string name) {
+        return symbols.find(name) != symbols.end();
+    }
+
+    /**
+     * Checks if a symbol exists in itself, its parent or any level above it
+     *
+     * @param name The name of the symbol to check
+     * @return true if the symbol exists, false otherwise
+     */
+    bool exists_in_parent(std::string name) {
+        if (exists(name)) return true;
+        if (parent != NULL) return parent->exists_in_parent(name);
+        return false;
+    }
+
+    Symbol *get_symbol(std::string name) {
+        if (exists(name)) return &symbols[name];
+        if (parent == NULL) return NULL;
+        return parent->get_symbol(name);
+    }
+
+    SymbolTable get_child(std::string name) {
+        for (SymbolTable child : children) {
+            if (child.name == name) return child;
+        }
+        return SymbolTable("");
+    }
+
+    /**
+     * Prints the symbol table in a human-readable format.
+     * Prints the name of the symbol table, followed by a header line.
+     * Prints each symbol in the symbol table on a separate line, with the following columns:
+     *   - NAME: the name of the symbol
+     *   - TYPE: the type of the symbol (e.g. int, void, etc.)
+     *   - LINE: the line number of the symbol
+     *   - SIZE: the size of the symbol (if applicable, e.g. arrays)
+     *   - ARGS: the arguments of the symbol (if applicable, e.g. functions)
+     * If the symbol table has children, prints a newline and recursively calls
+     * print() on each child.
+     */
+    void print() {
+        // Don't print if there are no symbols
+        if (symbols.empty()) {
+            for (SymbolTable child : children) {
+                child.print();
+            }
+            return;
+        }
+
+        printf("%s:\n", name.c_str());
+
+        printf("%20s |%8s |%5s |%5s | %-s\n", "NAME", "TYPE", "LINE", "SIZE", "ARGS");
+        printf("%20s |%8s |%5s |%5s | %-s\n", "----", "----", "----", "----", "----");
+
+        for (std::pair<std::string, Symbol> symbol : symbols) {
+            std::string size = "-";
+            if (symbol.second.size != 0) {
+                size = std::to_string(symbol.second.size);
+            }
+            printf("%20s |%8s |%5d |%5s | ", symbol.first.c_str(), symbol.second.type.c_str(), symbol.second.line, size.c_str());
+
+            if (symbol.second.args.empty()) {
+                printf("-\n");
+            } else {
+                printf("(");
+                for (std::string arg : symbol.second.args) {
+                    printf("%s", arg.c_str());
+                    if (arg != symbol.second.args.back()) {
+                        printf(", ");
+                    }
+                }
+                printf(")\n");
+            }
+        }
+
+        printf("\n");
+
+        for (SymbolTable child : children) {
+            child.print();
+        }
+    }
+};
+
+/* Symbol Table function */
+SymbolTable symbol_table(AST ast, bool print = true);
+
+/* Semantic Analyzer function */
+bool semantic_analyzer(AST ast, bool print = true);
