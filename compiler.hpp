@@ -590,11 +590,24 @@ struct AST {
     }
 };
 
-// Parser function
+/**
+ * Parses a sequence of tokens and constructs an Abstract Syntax Tree (AST).
+ * 
+ * This function utilizes a predictive parsing technique with a parsing table
+ * to build an AST for a given sequence of tokens. It starts with a root node
+ * and processes tokens by pushing and popping from a stack that represents
+ * the expected grammar symbols. Terminals are matched against tokens, while
+ * non-terminals are expanded using production rules from the parsing table.
+ * The function also handles errors by checking for unexpected tokens and 
+ * printing an error message. Once parsing is complete, the AST is pruned to
+ * remove unnecessary nodes, and optionally printed in a tree-like structure.
+ * 
+ * @param tokens A vector of tokens to parse.
+ * @param current Reference to the current index in the tokens vector.
+ * @param print Boolean to determine whether to print the resulting AST.
+ * @return The constructed AST for the given sequence of tokens.
+ */
 AST parser(std::vector<Token> tokens, size_t &current, bool print = true);
-
-// AST pruning function
-void prune(AST *node);
 
 static const std::unordered_set<std::string> dropNonTerminals = {
     "DECLARATION_LIST", "DECLARATION_LIST'", "DECLARATION'", "LOCAL_DECLARATIONS", "VAR_DECLARATION'", "PARAMS", "PARAM_LIST", "PARAM_LIST'", "PARAM'",
@@ -608,6 +621,7 @@ static const std::unordered_set<TokenType> dropTerminals = {
 
 /* Semantic Analyzer */
 
+// Symbol
 struct Symbol {
     std::string name;
     std::string type;
@@ -623,7 +637,7 @@ struct Symbol {
     Symbol(std::string name, std::string type, int line) : name(name), type(type), line(line) {}
 };
 
-/* Symbol Table */
+// Symbol Table
 struct SymbolTable {
     std::string name;
     std::unordered_map<std::string, Symbol> symbols; // The symbols in the symbol table
@@ -658,6 +672,18 @@ struct SymbolTable {
         return false;
     }
 
+    /**
+     * @brief Retrieves a symbol from the symbol table by its name.
+     *
+     * This function searches for a symbol with the specified name
+     * within the current symbol table. If the symbol is not found,
+     * the function recursively searches in the parent symbol table
+     * (if it exists). If the symbol is found, a pointer to the symbol
+     * is returned; otherwise, a NULL pointer is returned.
+     *
+     * @param name The name of the symbol to retrieve.
+     * @return A pointer to the symbol if found, or NULL if not found.
+     */
     Symbol *get_symbol(std::string name) {
         if (exists(name)) return &symbols[name];
         if (parent == NULL) return NULL;
@@ -726,8 +752,19 @@ struct SymbolTable {
     }
 };
 
-/* Symbol Table function */
+/**
+ * @brief Construct the symbol table from the given AST
+ *
+ * @param ast The Abstract Syntax Tree
+ * @param print Whether to print the symbol table
+ * @return The constructed symbol table
+ */
 SymbolTable symbol_table(AST ast, bool print = true);
 
-/* Semantic Analyzer function */
+/**
+ * @brief Runs the semantic analyzer on the given AST
+ * @param ast the Abstract Syntax Tree to analyze
+ * @param print whether to print the symbol table and the result of the typecheck
+ * @return true if the typecheck passes, false otherwise
+ */
 bool semantic_analyzer(AST ast, bool print = true);

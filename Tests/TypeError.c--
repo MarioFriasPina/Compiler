@@ -1,0 +1,10 @@
+void test(void) {
+    return;
+}
+
+void main(void) {
+    int x;
+
+    x = 42 + test();
+    output(x);
+}

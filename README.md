@@ -1,14 +1,30 @@
-# Lexer for Simple Programming Language
+# Compiler for Simple Programming Language (C--)
 
-This project implements a lexical analyzer (lexer) for a simplified programming language using a deterministic finite automaton (DFA). It reads a source file, tokenizes the content, and reports any lexical errors with helpful diagnostics.
+This project implements a compiler for a simple programming language called "C--". The compiler takes a source file as input and generates a token stream that can be used for further processing or analysis.
 
 ## Features
+
+### Lexer
+
+The lexer performs the following tasks:
 
 -   Recognizes keywords like `if`, `else`, `int`, `return`, `void`, `while`
 -   Supports basic punctuation and operators (`+`, `-`, `*`, `/`, `==`, `!=`, `<=`, etc.)
 -   Handles C-style comments (`/* ... */`)
 -   Reports invalid tokens with line and column indicators
--   Can optionally suppress token output
+-   Can output the token stream
+
+### Parser
+
+-   Generates an abstract syntax tree (AST) from the token stream
+-   Reports syntax errors with line indicators
+-   Can output the AST
+
+### Semantic Analysis
+
+-   Symbol Table Generation
+-   Type Checking
+-   Can output the symbol table
 
 ## Build Instructions
 
@@ -21,28 +37,24 @@ make
 ## Usage
 
 ```bash
-./lexer <source_file> [-p]
+./lexer <source_file> [-lps]
 ```
 
 -   `<source_file>`: The input source file to be tokenized.
--   `-p`: Optional flag to suppress token output.
+-   `-l`: Print lexer output.
+-   `-p`: Print parser output.
+-   `-s`: Print symbol table.
 
 ## Examples
 
 ```bash
 ./lexer Tests/Error.c--
-./lexer Tests/Simple.c-- -p
+./lexer Tests/Simple.c-- -lps
 ```
 
-## Error Reporting
+## Error Handling
 
-If an invalid token is encountered, the lexer highlights the offending character and the state in which the error occurred. Example:
-
-```cpp
-Line 3: Error on ID formation:
-int 9num;
-    ^
-```
+Each error is reported with a line number and error message.
 
 ## Cleanup
 
@@ -50,6 +62,12 @@ To remove the compiled binary:
 
 ```bash
 make clean
+```
+
+To remove all generated files:
+
+```bash
+make fclean
 ```
 
 ## License

@@ -90,41 +90,42 @@ SymbolTable symbol_table(AST ast, bool print) {
 }
 
 std::string typecheck(AST ast, SymbolTable tbl) {
+    if (ast.type == TokenType::T_ID) {
+        // Check if the symbol exists in the symbol table
+        if (!tbl.exists_in_parent(ast.value)) {
+            fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.value.c_str());
+            return "";
+        }
+        return tbl.symbols[ast.value].type;
+    }
+    if (ast.type == TokenType::T_NUM) {
+        return "int";
+    }
+
     // Change scope, when entering a new one
     if ((ast.value == "DECLARATION" && ast.children[2].value == "(") || ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
         // Find the new scope in the symbol table
         SymbolTable scope = tbl.get_child(ast.children[1].value);
 
         if (scope.name == "") {
-            printf("Line %d: Undefined symbol: %s\n", ast.line, ast.children[1].value.c_str());
+            fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[1].value.c_str());
             return "";
         }
 
-        for (AST &child : ast.children) {
-            traverse(child, scope);
-        }
-        return "";
+        // Check the type in the new scope
+        return typecheck(ast.children.back(), scope);
     }
-    else if (ast.type == TokenType::T_ID) {
-        // Check if the symbol exists in the symbol table
-        if (!tbl.exists_in_parent(ast.value)) {
-            printf("Line %d: Undefined symbol: %s\n", ast.line, ast.value.c_str());
-            return "";
-        }
-        return tbl.symbols[ast.value].type;
-    }
-    else if (ast.type == TokenType::T_NUM) {
-        return "int";
-    }
-    else if (ast.value == "EXPRESSION") {
+    if (ast.value == "EXPRESSION") {
         // Check assignment
         if (ast.children[1].value == "=") {
             // Check the type of the left side
             std::string left = typecheck(ast.children[0], tbl);
             std::string right = typecheck(ast.children[2], tbl);
 
+            if (left == "" || right == "") return "";
+
             if (left != right) {
-                printf("Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
+                fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
                 return "";
             }
 
@@ -136,8 +137,10 @@ std::string typecheck(AST ast, SymbolTable tbl) {
         std::string left = typecheck(ast.children[0], tbl);
         std::string right = typecheck(ast.children[2], tbl);
 
+        if (left == "" || right == "") return "";
+
         if (left != right) {
-            printf("Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
+            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
             return "";
         }
 
@@ -147,48 +150,96 @@ std::string typecheck(AST ast, SymbolTable tbl) {
         std::string value = typecheck(ast.children[1], tbl);
         std::string ret_type = tbl.parent->symbols[tbl.name].type;
 
+        if (value == "") return "";
+
         if (value != ret_type) {
-            printf("Line %d: Type mismatch: %s != %s\n", ast.line, value.c_str(), ret_type.c_str());
+            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, value.c_str(), ret_type.c_str());
             return "";
         }
 
         return value;
     }
     else if (ast.value == "FACTOR") {
-        Symbol *sym = tbl.get_symbol(ast.children[0].value);
+        // Check array
+        if (ast.children[1].value == "[") {
+            Symbol *array = tbl.get_symbol(ast.children[0].value);
+            std::string index = typecheck(ast.children[2], tbl);
 
-        if (sym == NULL) {
-            printf("Line %d: Undefined symbol: %s\n", ast.line, ast.children[0].value.c_str());
-            return "";
-        }
-
-        /* // Get the expected arguments
-        std::vector<std::string> real_args;
-        for (int i = 2; i < ast.children.size() - 1; i++) {
-            real_args.push_back(typecheck(ast.children[i], tbl));
-        }
-
-        // Check if the arguments match
-        for (int i = 0; i < sym->args.size(); i++) {
-            if (sym->args[i] != real_args[i]) {
-                printf("Type mismatch: %s != %s\n", sym->args[i].c_str(), real_args[i].c_str());
+            if (array == nullptr) {
+                fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[0].value.c_str());
                 return "";
             }
-        } */
 
+            // Check that the symbol is an array
+            if (array->size == 0) {
+                fprintf(stderr, "Line %d: Type mismatch: %s != array\n", ast.line, array->type.c_str());
+                return "";
+            }
 
-        return sym->type;
+            // Check that the index is an integer
+            if (index != "int") {
+                fprintf(stderr, "Line %d: Type mismatch: %s != int\n", ast.line, index.c_str());
+                return "";
+            }
+
+            return array->type;
+        }
+        // Check function call
+        else if (ast.children[1].value == "(") {
+            Symbol *func = tbl.get_symbol(ast.children[0].value);
+
+            if (func == nullptr) {
+                fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[0].value.c_str());
+                return "";
+            }
+
+            // Check that the symbol is a function
+            if (func->args.size() == 0) {
+                fprintf(stderr, "Line %d: Type mismatch: %s != function\n", ast.line, func->type.c_str());
+                return "";
+            }
+
+            // Get the number of arguments in factor, removing the id and the parentheses
+            size_t num_args = ast.children.size() - 3;
+
+            // Void parameter functions are called with 0 arguments
+            if (func->args.size() == 1 && func->args[0] == "void") num_args = 0;
+
+            // Check that the number of arguments is correct
+            if (func->args.size() != num_args) {
+                fprintf(stderr, "Line %d: Parameter mismatch: %lld != %lld\n", ast.line, func->args.size(), num_args);
+                return "";
+            }
+
+            // Check that the types of the arguments are correct
+            for (size_t i = 0; i < num_args; i++) {
+                std::string arg = typecheck(ast.children[i + 2], tbl);
+                if (arg != func->args[i]) {
+                    fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, arg.c_str(), func->args[i].c_str());
+                    return "";
+                }
+            }
+
+            return func->type;
+        }
     }
+
+    // In all other cases
+    std::string ret = ":)";
     for (AST &child : ast.children) {
-        typecheck(child, tbl);
+        if (typecheck(child, tbl) == "") ret = "";
     }
-    return "";
+    return ret;
 }
 
 bool semantic_analyzer(AST ast, bool print) {
     SymbolTable tbl = symbol_table(ast, print);
 
-    typecheck(ast, tbl);
+    std::string result = typecheck(ast, tbl);
+
+    if (result == "") return false;
+
+    if (print) printf("Typecheck passed\n");
 
     return true;
 }
