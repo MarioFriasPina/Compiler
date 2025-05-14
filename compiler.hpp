@@ -615,9 +615,7 @@ static const std::unordered_set<std::string> dropNonTerminals = {
     "ADDOP", "TERM'", "MULOP", "FACTOR'", "ARGS", "ARG_LIST", "ARG_LIST'",
 };
 
-static const std::unordered_set<TokenType> dropTerminals = {
-    T_SEMICOLON, T_COMMA, T_ENDFILE
-};
+static const std::unordered_set<TokenType> dropTerminals = { T_SEMICOLON, T_COMMA, T_ENDFILE };
 
 /* Semantic Analyzer */
 
@@ -643,9 +641,9 @@ struct SymbolTable {
     std::unordered_map<std::string, Symbol> symbols; // The symbols in the symbol table
 
     std::vector<SymbolTable> children; // The children of the symbol table
-    SymbolTable *parent; // The parent of the symbol table
+    SymbolTable *parent;
 
-    int accessed = 0; // The number of times the symbol table has been accessed
+    int current_child = 0; // The current child of the symbol table
 
     SymbolTable(std::string name) : name(name), parent(NULL) {}
     SymbolTable(std::string name, SymbolTable *parent) : name(name), parent(parent) {}
@@ -667,9 +665,7 @@ struct SymbolTable {
      * @return true if the symbol exists, false otherwise
      */
     bool exists_in_parent(std::string name) {
-        if (exists(name)) return true;
-        if (parent != NULL) return parent->exists_in_parent(name);
-        return false;
+        return exists(name) || (parent != NULL && parent->exists_in_parent(name));
     }
 
     /**
@@ -684,17 +680,12 @@ struct SymbolTable {
      * @param name The name of the symbol to retrieve.
      * @return A pointer to the symbol if found, or NULL if not found.
      */
-    Symbol *get_symbol(std::string name) {
-        if (exists(name)) return &symbols[name];
-        if (parent == NULL) return NULL;
-        return parent->get_symbol(name);
-    }
-
-    SymbolTable get_child(std::string name) {
-        for (SymbolTable child : children) {
-            if (child.name == name) return child;
+    Symbol *get_symbol(std::string _name) {
+        Symbol *symbol = symbols.find(_name) != symbols.end() ? &symbols[_name] : NULL;
+        if (symbol == NULL && parent != NULL) {
+            symbol = parent->get_symbol(_name);
         }
-        return SymbolTable("");
+        return symbol;
     }
 
     /**
@@ -748,6 +739,17 @@ struct SymbolTable {
 
         for (SymbolTable child : children) {
             child.print();
+        }
+    }
+
+    void print_tree(int indent = 0) {
+        std::string tabs(indent, '\t');
+        if (parent == NULL)
+            printf("%s%s\n", tabs.c_str(), name.c_str());
+        else
+            printf("%s%s->%s\n", tabs.c_str(), name.c_str(), parent->name.c_str());
+        for (SymbolTable child : children) {
+            child.print_tree(indent + 1);
         }
     }
 };

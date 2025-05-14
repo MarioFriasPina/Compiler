@@ -22,6 +22,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
 
             // Create a new scope in the symbol table
             tbl.children.push_back(SymbolTable(name, &tbl));
+
             for (AST &child : ast.children) {
                 traverse(child, tbl.children.back());
             }
@@ -43,7 +44,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         }
 
         // Save in parent table, in the function
-        tbl.parent->symbols[tbl.name].args.push_back(name);
+        tbl.parent->symbols[tbl.name].args.push_back(type);
     }
     else if (ast.value == "VAR_DECLARATION") {
         std::string type = ast.children[0].value;
@@ -56,11 +57,10 @@ void traverse(AST &ast, SymbolTable &tbl) {
         }
     }
     else if (ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
-        std::string name = ast.children[0].value + "_" + tbl.name + "_" + std::to_string(tbl.children.size());
-
-        // Create new scope
+        std::string name = ast.children[0].value + "_line_" + std::to_string(ast.line);
+        // Create a new scope in the symbol table
         tbl.children.push_back(SymbolTable(name, &tbl));
-        
+
         for (AST &child : ast.children) {
             traverse(child, tbl.children.back());
         }
@@ -73,8 +73,15 @@ void traverse(AST &ast, SymbolTable &tbl) {
     }
 }
 
+void correct_parentage(SymbolTable &tbl) {
+    for (SymbolTable &child : tbl.children) {
+        child.parent = &tbl;
+        correct_parentage(child);
+    }
+}
+
 SymbolTable symbol_table(AST ast, bool print) {
-    SymbolTable sym("Global");
+    SymbolTable sym("Global", NULL);
 
     // Add output and input functions to global symbol table
     sym.symbols["output"] = Symbol("output", "void", 0);
@@ -84,56 +91,42 @@ SymbolTable symbol_table(AST ast, bool print) {
 
     traverse(ast, sym);
 
+    // Correct parentage
+    correct_parentage(sym);
+
     if (print) sym.print();
 
     return sym;
 }
 
-std::string typecheck(AST ast, SymbolTable tbl) {
+std::string typecheck(AST ast, SymbolTable &tbl) {
     if (ast.type == TokenType::T_ID) {
-        // Check if the symbol exists in the symbol table
-        if (!tbl.exists_in_parent(ast.value)) {
-            fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.value.c_str());
+        Symbol *symbol = tbl.get_symbol(ast.value);
+        if (symbol == NULL) {
+            fprintf(stderr, "Line %d: Undefined variable %s\n", ast.line, ast.value.c_str());
             return "";
         }
-        return tbl.symbols[ast.value].type;
+        return symbol->type;
     }
     if (ast.type == TokenType::T_NUM) {
         return "int";
     }
 
     // Change scope, when entering a new one
-    if ((ast.value == "DECLARATION" && ast.children[2].value == "(") || ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
-        // Find the new scope in the symbol table
-        SymbolTable scope = tbl.get_child(ast.children[1].value);
+    if (ast.value == "DECLARATION" && ast.children[2].value == "(")
+        return typecheck(ast.children.back(), tbl.children[tbl.current_child++]);
 
-        if (scope.name == "") {
-            fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[1].value.c_str());
-            return "";
-        }
+    if (ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
+        SymbolTable scope = tbl.children[tbl.current_child++];
+
+        // Check the content inside the expression
+        std::string expression = typecheck(ast.children[2], scope);
 
         // Check the type in the new scope
         return typecheck(ast.children.back(), scope);
     }
+
     if (ast.value == "EXPRESSION") {
-        // Check assignment
-        if (ast.children[1].value == "=") {
-            // Check the type of the left side
-            std::string left = typecheck(ast.children[0], tbl);
-            std::string right = typecheck(ast.children[2], tbl);
-
-            if (left == "" || right == "") return "";
-
-            if (left != right) {
-                fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
-                return "";
-            }
-
-            return left;
-        }
-        
-    }
-    else if (ast.value == "ADDITIVE_EXPRESSION" || ast.value == "TERM") {
         std::string left = typecheck(ast.children[0], tbl);
         std::string right = typecheck(ast.children[2], tbl);
 
@@ -146,7 +139,20 @@ std::string typecheck(AST ast, SymbolTable tbl) {
 
         return left;
     }
-    else if (ast.value == "RETURN_STMT") {
+    if (ast.value == "ADDITIVE_EXPRESSION" || ast.value == "TERM") {
+        std::string left = typecheck(ast.children[0], tbl);
+        std::string right = typecheck(ast.children[2], tbl);
+
+        if (left == "" || right == "") return "";
+
+        if (left != right) {
+            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
+            return "";
+        }
+
+        return left;
+    }
+    if (ast.value == "RETURN_STMT") {
         std::string value = typecheck(ast.children[1], tbl);
         std::string ret_type = tbl.parent->symbols[tbl.name].type;
 
@@ -159,14 +165,14 @@ std::string typecheck(AST ast, SymbolTable tbl) {
 
         return value;
     }
-    else if (ast.value == "FACTOR") {
+    if (ast.value == "FACTOR") {
         // Check array
         if (ast.children[1].value == "[") {
             Symbol *array = tbl.get_symbol(ast.children[0].value);
             std::string index = typecheck(ast.children[2], tbl);
 
-            if (array == nullptr) {
-                fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[0].value.c_str());
+            if (array == NULL) {
+                fprintf(stderr, "Line %d: Undefined variable %s[]\n", ast.line, ast.children[0].value.c_str());
                 return "";
             }
 
@@ -189,7 +195,7 @@ std::string typecheck(AST ast, SymbolTable tbl) {
             Symbol *func = tbl.get_symbol(ast.children[0].value);
 
             if (func == nullptr) {
-                fprintf(stderr, "Line %d: Undefined symbol: %s\n", ast.line, ast.children[0].value.c_str());
+                fprintf(stderr, "Line %d: Undefined function %s()\n", ast.line, ast.children[0].value.c_str());
                 return "";
             }
 
@@ -203,7 +209,13 @@ std::string typecheck(AST ast, SymbolTable tbl) {
             size_t num_args = ast.children.size() - 3;
 
             // Void parameter functions are called with 0 arguments
-            if (func->args.size() == 1 && func->args[0] == "void") num_args = 0;
+            if (func->args.size() == 1 && func->args[0] == "void") {
+                if (num_args != 0) {
+                    fprintf(stderr, "Line %d: Parameter mismatch: %lld != %lld\n", ast.line, func->args.size(), num_args);
+                    return "";
+                }
+                return func->type;
+            }
 
             // Check that the number of arguments is correct
             if (func->args.size() != num_args) {
@@ -214,8 +226,9 @@ std::string typecheck(AST ast, SymbolTable tbl) {
             // Check that the types of the arguments are correct
             for (size_t i = 0; i < num_args; i++) {
                 std::string arg = typecheck(ast.children[i + 2], tbl);
+
                 if (arg != func->args[i]) {
-                    fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, arg.c_str(), func->args[i].c_str());
+                    fprintf(stderr, "Line %d: Parameter Type mismatch: %s != %s\n", ast.line, arg.c_str(), func->args[i].c_str());
                     return "";
                 }
             }
@@ -233,7 +246,11 @@ std::string typecheck(AST ast, SymbolTable tbl) {
 }
 
 bool semantic_analyzer(AST ast, bool print) {
+    std::stack<SymbolTable> tbl_stack;
+
     SymbolTable tbl = symbol_table(ast, print);
+
+    //tbl.print_tree();
 
     std::string result = typecheck(ast, tbl);
 
