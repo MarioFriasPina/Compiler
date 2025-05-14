@@ -252,6 +252,12 @@ bool semantic_analyzer(AST ast, bool print) {
 
     //tbl.print_tree();
 
+    // Check that the global scope has a main function
+    if (tbl.get_symbol("main") == NULL) {
+        fprintf(stderr, "Line %d: Undefined function main()\n", ast.line);
+        return false;
+    }
+
     std::string result = typecheck(ast, tbl);
 
     if (result == "") return false;
