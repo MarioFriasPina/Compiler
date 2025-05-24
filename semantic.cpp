@@ -14,7 +14,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.current_offset, global);
 
         if (ast.children.size() > 3 && ast.children[2].value == "(") {
             // Save void in symbol
@@ -32,18 +32,25 @@ void traverse(AST &ast, SymbolTable &tbl) {
 
         } else if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = std::stoi(ast.children[3].value);
+            tbl.current_offset += tbl.symbols[name].size * 4;
         }
+        else
+            tbl.current_offset += 4;
     }
     else if (ast.value == "PARAM") {
         // Save in current table
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.current_offset, global);
+        tbl.symbols[name].param = true;
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = 1;
+            tbl.current_offset += tbl.symbols[name].size * 4;
         }
+        else
+            tbl.current_offset += 4;
 
         // Save in parent table, in the function
         tbl.parent->symbols[tbl.name].args.push_back(type);
@@ -52,11 +59,14 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.current_offset, global);
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = std::stoi(ast.children[3].value);
+            tbl.current_offset += tbl.symbols[name].size * 4;
         }
+        else
+            tbl.current_offset += 4;
     }
     else if (ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
         std::string name = ast.children[0].value + "_line_" + std::to_string(ast.line);

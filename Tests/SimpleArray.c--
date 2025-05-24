@@ -1,0 +1,22 @@
+void recieve(int x[]) {
+    int i;
+
+    i = 0;
+    while (i < 20) {
+        output(x[i]);
+        i = i + 1;
+    }
+}
+
+void main(void) {
+    int x[20];
+    int i;
+
+    i = 0;
+    while (i < 20) {
+        x[i] = i;
+        i = i + 1;
+    }
+
+    recieve(x);
+}

@@ -10,6 +10,7 @@
 #include <array>
 #include <stack>
 #include <unordered_map>
+#include <algorithm>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -631,6 +632,7 @@ struct Symbol {
 
     // Specific for arrays
     size_t size = 0;
+    bool param = false;
 
     // Specific for functions
     std::vector<std::string> args;
@@ -650,6 +652,7 @@ struct SymbolTable {
     std::string return_type; // The return type of the current scope
 
     int current_child = 0; // The current child of the symbol table
+    int current_offset = 4; // The current offset of the symbols
 
     SymbolTable(std::string name) : name(name), parent(NULL), return_type("") {}
     SymbolTable(std::string name, SymbolTable *parent, std::string return_type) : name(name), parent(parent), return_type(return_type) {}
@@ -746,25 +749,27 @@ struct SymbolTable {
 
         printf("%s:\n", name.c_str());
 
-        printf("%20s |%8s |%5s |%5s | %-s\n", "NAME", "TYPE", "LINE", "SIZE", "ARGS");
-        printf("%20s |%8s |%5s |%5s | %-s\n", "----", "----", "----", "----", "----");
+        printf("%20s |%8s |%5s |%5s | %6s | %-s\n", "NAME", "TYPE", "LINE", "SIZE", "OFFSET", "ARGS");
+        printf("%20s |%8s |%5s |%5s | %6s | %-s\n", "----", "----", "----", "----", "------", "----");
 
         for (std::pair<std::string, Symbol> symbol : symbols) {
             std::string size = "-";
             if (symbol.second.size != 0) {
                 size = std::to_string(symbol.second.size);
             }
-            printf("%20s |%8s |%5d |%5s | ", symbol.first.c_str(), symbol.second.type.c_str(), symbol.second.line, size.c_str());
+            printf("%20s |%8s |%5d |%5s | %6d | ", symbol.first.c_str(), symbol.second.type.c_str(), symbol.second.line, size.c_str(), symbol.second.offset);
 
             if (symbol.second.args.empty()) {
                 printf("-\n");
             } else {
                 printf("(");
+                size_t i = 0;
                 for (std::string arg : symbol.second.args) {
                     printf("%s", arg.c_str());
-                    if (arg != symbol.second.args.back()) {
+                    if (i < symbol.second.args.size() - 1) {
                         printf(", ");
                     }
+                    i++;
                 }
                 printf(")\n");
             }
