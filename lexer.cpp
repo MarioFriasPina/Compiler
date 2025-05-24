@@ -417,6 +417,8 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
             fprintf(stderr, "%.*s\n", (int)(end_pos - line_start), str + line_start); // Print the current line
             fprintf(stderr, "%*c\n" ANSI_COLOR_RESET, (int)(pos - line_start), '^'); // Print the position of the error with a caret
 
+            g_errors = true;
+
             token.token = TokenType::T_ERROR;
             token.tokenString = std::string(str + start_pos, pos - start_pos);
             return token;
@@ -439,64 +441,3 @@ Token getToken(size_t &pos, size_t len, const char *str, size_t &line_start, siz
     }
     return token;
 }
-
-/*
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: %s input_file [-p]\n\t-p: do not print tokens\n", argv[0]);
-        return 1;
-    }
-
-    bool toprint = true;
-
-    if (argc > 2) {
-        for (int i = 2; i < argc; i++) {
-            if (strcmp(argv[i], "-p") == 0) {
-                toprint = false;
-            }
-        }
-    }
-
-    std::ifstream file(argv[1]);
-
-    if (!file.is_open()) {
-        printf("Failed to open file %s\n", argv[1]);
-        return 1;
-    }
-
-    // Read the file into a string
-    std::string buffer((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
-
-    file.close();
-
-    // Add a $ at the end of the string
-    buffer += '$';
-
-    // Length of string
-    size_t len = buffer.length();
-    // Current position
-    size_t i = 0;
-    // Current line start
-    size_t line_start = 0;
-    // Current line
-    size_t line = 0;
-
-    // Loop through the string and get tokens
-    while (i < len) {
-        Token token = getToken(i, len, buffer.c_str(), line_start, line, toprint);
-
-        // If the token is not an error, update the current position
-        if (token.token == TokenType::T_ERROR) {
-            // Skip to the end of the line, or the end of the file
-            while (buffer[i] != '\n' && buffer[i] != '$')
-                ++i;
-            // Update the line number
-            ++line;
-            // Update the line start
-            line_start = i;
-        }
-    }
-
-    return 0;
-}
-*/

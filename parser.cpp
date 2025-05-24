@@ -103,7 +103,7 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                 current_token = advance_token(tokens, current);
             } else {
                 // Print error
-                printf("Line %d: unexpected token %s, expected %s\n", current_token.line, token_names[current_token.token].c_str(), top.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: unexpected token %s, expected %s\n" ANSI_COLOR_RESET, current_token.line, token_names[current_token.token].c_str(), top.c_str());
                 //errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected " + top);
                 return root;
             }
@@ -124,29 +124,12 @@ AST parser(std::vector<Token> tokens, size_t &current, bool print) {
                     }
                 }
 
-                printf("Line %d: unexpected token %s, expected one of: ", current_token.line, token_names[current_token.token].c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: unexpected token %s, expected one of: ", current_token.line, token_names[current_token.token].c_str());
                 for (size_t i = 0; i < expected.size(); i++) {
-                    printf("%s", token_names[expected[i]].c_str());
-                    if (i < expected.size() - 1) printf(", ");
+                    fprintf(stderr, "%s", token_names[expected[i]].c_str());
+                    if (i < expected.size() - 1) fprintf(stderr, ", ");
                 }
-                printf("\n");
-
-                /*
-                errors.push_back("Line " + std::to_string(current_token.line) + ": unexpected token " + token_names[current_token.token] + ", expected one of: ");
-                for (size_t i = 0; i < expected.size(); i++) {
-                    errors.back() += token_names[expected[i]];
-                    if (i < expected.size() - 1) errors.back() += ", ";
-                }
-                errors.back() += "\n";
-
-                // Skip to the next safe token
-                while (current_token.token != TokenType::T_ENDFILE && safe_tokens.count(current_token.token) == 0)
-                    current_token = advance_token(tokens, current);
-
-                // Drop the bad tokens
-                stack.pop();
-                nodeStack.pop();
-                */
+                fprintf(stderr, "\n" ANSI_COLOR_RESET);
 
                 return root;
             }

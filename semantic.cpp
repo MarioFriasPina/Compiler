@@ -12,7 +12,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
 
         if (ast.children[2].value == "(") {
             // Save void in symbol
@@ -21,7 +21,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
             }
 
             // Create a new scope in the symbol table
-            tbl.children.push_back(SymbolTable(name, &tbl));
+            tbl.children.push_back(SymbolTable(name, &tbl, type));
 
             for (AST &child : ast.children) {
                 traverse(child, tbl.children.back());
@@ -37,7 +37,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = 1;
@@ -50,7 +50,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line);
+        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = std::stoi(ast.children[3].value);
@@ -59,7 +59,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
     else if (ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
         std::string name = ast.children[0].value + "_line_" + std::to_string(ast.line);
         // Create a new scope in the symbol table
-        tbl.children.push_back(SymbolTable(name, &tbl));
+        tbl.children.push_back(SymbolTable(name, &tbl, tbl.return_type));
 
         for (AST &child : ast.children) {
             traverse(child, tbl.children.back());
@@ -81,12 +81,12 @@ void correct_parentage(SymbolTable &tbl) {
 }
 
 SymbolTable symbol_table(AST ast, bool print) {
-    SymbolTable sym("Global", NULL);
+    SymbolTable sym("Global", NULL, "void");
 
     // Add output and input functions to global symbol table
-    sym.symbols["output"] = Symbol("output", "void", 0);
+    sym.symbols["output"] = Symbol("output", "void", 0, 0);
     sym.symbols["output"].args.push_back("int");
-    sym.symbols["input"] = Symbol("input", "int", 0);
+    sym.symbols["input"] = Symbol("input", "int", 0, 0);
     sym.symbols["input"].args.push_back("void");
 
     traverse(ast, sym);
@@ -103,7 +103,8 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
     if (ast.type == TokenType::T_ID) {
         Symbol *symbol = tbl.get_symbol(ast.value);
         if (symbol == NULL) {
-            fprintf(stderr, "Line %d: Undefined variable %s\n", ast.line, ast.value.c_str());
+            fprintf(stderr, ANSI_COLOR_RED "Line %d: Undefined variable %s\n" ANSI_COLOR_RESET, ast.line, ast.value.c_str());
+            g_errors = true;
             return "";
         }
         return symbol->type;
@@ -133,7 +134,8 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
         if (left == "" || right == "") return "";
 
         if (left != right) {
-            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
+            fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in expression: %s != %s\n" ANSI_COLOR_RESET, ast.line, left.c_str(), right.c_str());
+            g_errors = true;
             return "";
         }
 
@@ -146,7 +148,8 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
         if (left == "" || right == "") return "";
 
         if (left != right) {
-            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, left.c_str(), right.c_str());
+            fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in math operation: %s != %s\n" ANSI_COLOR_RESET, ast.line, left.c_str(), right.c_str());
+            g_errors = true;
             return "";
         }
 
@@ -154,12 +157,12 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
     }
     if (ast.value == "RETURN_STMT") {
         std::string value = typecheck(ast.children[1], tbl);
-        std::string ret_type = tbl.parent->symbols[tbl.name].type;
 
         if (value == "") return "";
 
-        if (value != ret_type) {
-            fprintf(stderr, "Line %d: Type mismatch: %s != %s\n", ast.line, value.c_str(), ret_type.c_str());
+        if (value != tbl.return_type) {
+            fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in return statement: %s != %s\n" ANSI_COLOR_RESET, ast.line, value.c_str(), tbl.return_type.c_str());
+            g_errors = true;
             return "";
         }
 
@@ -172,19 +175,22 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
             std::string index = typecheck(ast.children[2], tbl);
 
             if (array == NULL) {
-                fprintf(stderr, "Line %d: Undefined variable %s[]\n", ast.line, ast.children[0].value.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Undefined variable %s[]\n" ANSI_COLOR_RESET, ast.line, ast.children[0].value.c_str());
+                g_errors = true;
                 return "";
             }
 
             // Check that the symbol is an array
             if (array->size == 0) {
-                fprintf(stderr, "Line %d: Type mismatch: %s != array\n", ast.line, array->type.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in array: %s != array\n" ANSI_COLOR_RESET, ast.line, array->type.c_str());
+                g_errors = true;
                 return "";
             }
 
             // Check that the index is an integer
             if (index != "int") {
-                fprintf(stderr, "Line %d: Type mismatch: %s != int\n", ast.line, index.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in index: %s != int\n" ANSI_COLOR_RESET, ast.line, index.c_str());
+                g_errors = true;
                 return "";
             }
 
@@ -195,13 +201,14 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
             Symbol *func = tbl.get_symbol(ast.children[0].value);
 
             if (func == nullptr) {
-                fprintf(stderr, "Line %d: Undefined function %s()\n", ast.line, ast.children[0].value.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Undefined function %s()\n" ANSI_COLOR_RESET, ast.line, ast.children[0].value.c_str());
+                g_errors = true;
                 return "";
             }
 
             // Check that the symbol is a function
             if (func->args.size() == 0) {
-                fprintf(stderr, "Line %d: Type mismatch: %s != function\n", ast.line, func->type.c_str());
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in function: %s != function\n" ANSI_COLOR_RESET, ast.line, func->type.c_str());
                 return "";
             }
 
@@ -211,7 +218,7 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
             // Void parameter functions are called with 0 arguments
             if (func->args.size() == 1 && func->args[0] == "void") {
                 if (num_args != 0) {
-                    fprintf(stderr, "Line %d: Parameter mismatch: %lld != %lld\n", ast.line, func->args.size(), num_args);
+                    fprintf(stderr, ANSI_COLOR_RED "Line %d: Parameter mismatch : %lld != %lld\n" ANSI_COLOR_RESET, ast.line, func->args.size(), num_args);
                     return "";
                 }
                 return func->type;
@@ -219,7 +226,7 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
 
             // Check that the number of arguments is correct
             if (func->args.size() != num_args) {
-                fprintf(stderr, "Line %d: Parameter mismatch: %lld != %lld\n", ast.line, func->args.size(), num_args);
+                fprintf(stderr, ANSI_COLOR_RED "Line %d: Parameter number mismatch: %lld != %lld\n" ANSI_COLOR_RESET, ast.line, func->args.size(), num_args);
                 return "";
             }
 
@@ -228,7 +235,7 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
                 std::string arg = typecheck(ast.children[i + 2], tbl);
 
                 if (arg != func->args[i]) {
-                    fprintf(stderr, "Line %d: Parameter Type mismatch: %s != %s\n", ast.line, arg.c_str(), func->args[i].c_str());
+                    fprintf(stderr, ANSI_COLOR_RED "Line %d: Type mismatch in argument: %s != %s\n" ANSI_COLOR_RESET, ast.line, arg.c_str(), func->args[i].c_str());
                     return "";
                 }
             }
@@ -242,114 +249,30 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
     for (AST &child : ast.children) {
         if (typecheck(child, tbl) == "") ret = "";
     }
+
     return ret;
 }
 
-bool semantic_analyzer(AST ast, bool print) {
+SymbolTable semantic_analyzer(AST ast, bool print) {
+
     std::stack<SymbolTable> tbl_stack;
 
     SymbolTable tbl = symbol_table(ast, print);
 
-    //tbl.print_tree();
-
     // Check that the global scope has a main function
     if (tbl.get_symbol("main") == NULL) {
-        fprintf(stderr, "Line %d: Undefined function main()\n", ast.line);
-        return false;
+        fprintf(stderr, ANSI_COLOR_RED "Line %d: Undefined function main()\n" ANSI_COLOR_RESET, ast.line);
+        g_errors = true;
     }
 
     std::string result = typecheck(ast, tbl);
 
-    if (result == "") return false;
+    if (result == "") {
+        fprintf(stderr, ANSI_COLOR_RED "Typecheck failed\n" ANSI_COLOR_RESET);
+        g_errors = true;
+    }
 
     if (print) printf("Typecheck passed\n");
 
-    return true;
-}
-
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: %s input_file [-pls] \n\t-p : print parser output\n\t-l : print lexer output\n \t-s : print symbol table\n", argv[0]);
-        return 1;
-    }
-
-    bool print_lexer = false;
-    bool print_parser = false;
-    bool print_symbol_table = false;
-
-    if (argc > 2) {
-        if (argv[2][0] == '-') {
-            for (size_t i = 1; i < strlen(argv[2]); i++) {
-                if (argv[2][i] == 'p') {
-                    print_parser = true;
-                }
-                else if (argv[2][i] == 'l') {
-                    print_lexer = true;
-                }
-                else if (argv[2][i] == 's') {
-                    print_symbol_table = true;
-                }
-            }
-        }
-    }
-
-    std::ifstream file(argv[1]);
-
-    if (!file.is_open()) {
-        printf("Failed to open file %s\n", argv[1]);
-        return 1;
-    }
-
-    // Read the file into a string
-    std::string buffer((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
-
-    file.close();
-
-    // Add a $ at the end of the string
-    buffer += '$';
-
-    // Length of string
-    size_t len = buffer.length();
-    // Current position
-    size_t i = 0;
-    // Current line start
-    size_t line_start = 0;
-    // Current line
-    size_t line = 1;
-
-    // Token vector
-    std::vector<Token> tokens;
-
-    // Loop through the string and get tokens
-    while (i < len) {
-        Token token = getToken(i, len, buffer.c_str(), line_start, line, print_lexer);
-
-        // If the token is not an error, update the current position
-        if (token.token == TokenType::T_ERROR) {
-            // Skip to the end of the line, or the end of the file
-            while (buffer[i] != '\n' && buffer[i] != '$')
-                ++i;
-            // Update the line number
-            ++line;
-            // Update the line start
-            line_start = i;
-        }
-        else {
-            // Add the token to the vector
-            tokens.push_back(token);
-        }
-    }
-
-    size_t current = 0; // Current token index
-
-    // Parse the tokens
-    AST root = parser(tokens, current, print_parser);
-
-    // Analyze the AST for semantic errors
-    bool result = semantic_analyzer(root, print_symbol_table);
-
-    if (result)
-        return 0;
-
-    return -1;
+    return tbl;
 }

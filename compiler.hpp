@@ -625,6 +625,9 @@ struct Symbol {
     std::string type;
     int line;
 
+    // Values for the code generator
+    int offset;
+
     // Specific for arrays
     size_t size = 0;
 
@@ -632,7 +635,7 @@ struct Symbol {
     std::vector<std::string> args;
 
     Symbol() {}
-    Symbol(std::string name, std::string type, int line) : name(name), type(type), line(line) {}
+    Symbol(std::string name, std::string type, int line, int offset) : name(name), type(type), line(line), offset(offset) {}
 };
 
 // Symbol Table
@@ -643,10 +646,12 @@ struct SymbolTable {
     std::vector<SymbolTable> children; // The children of the symbol table
     SymbolTable *parent;
 
+    std::string return_type; // The return type of the current scope
+
     int current_child = 0; // The current child of the symbol table
 
-    SymbolTable(std::string name) : name(name), parent(NULL) {}
-    SymbolTable(std::string name, SymbolTable *parent) : name(name), parent(parent) {}
+    SymbolTable(std::string name) : name(name), parent(NULL), return_type("") {}
+    SymbolTable(std::string name, SymbolTable *parent, std::string return_type) : name(name), parent(parent), return_type(return_type) {}
 
     /**
      * Checks if a symbol exists in the symbol table
@@ -686,6 +691,35 @@ struct SymbolTable {
             symbol = parent->get_symbol(_name);
         }
         return symbol;
+    }
+
+    /**
+     * @brief Retrieves a function from the symbol table by its name.
+     *
+     * This function searches for a function with the specified name
+     * within the current symbol table. If the function is not found,
+     * the function recursively searches in the parent symbol table
+     * (if it exists). If the function is found, a pointer to the function
+     * is returned; otherwise, a NULL pointer is returned.
+     *
+     * @param name The name of the function to retrieve.
+     * @return A pointer to the function if found, or NULL if not found.
+     */
+    SymbolTable *get_function(std::string _name) {
+        SymbolTable *func = this;
+        while (func->parent != NULL) {
+            func = func->parent;
+        }
+
+        // If the current scope is a function, return the function
+        for (size_t i = 0; i < func->children.size(); i++) {
+            if (func->children[i].name == _name) {
+                func = &func->children[i];
+                return func;
+            }
+        }
+
+        return NULL;
     }
 
     /**
@@ -769,4 +803,20 @@ SymbolTable symbol_table(AST ast, bool print = true);
  * @param print whether to print the symbol table and the result of the typecheck
  * @return true if the typecheck passes, false otherwise
  */
-bool semantic_analyzer(AST ast, bool print = true);
+SymbolTable semantic_analyzer(AST ast, bool print = true);
+
+/* Code Generation */
+
+extern bool g_errors;
+
+void body_gen(AST ast, AST content, SymbolTable &tbl, std::ofstream &file);
+
+void call_func(AST ast, SymbolTable &tbl, std::ofstream &file);
+
+void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file);
+
+void if_gen(AST ast, SymbolTable &tbl, std::ofstream &file);
+
+void funcgen(AST ast, SymbolTable &tbl, std::ofstream &file);
+
+void codegen(AST ast, SymbolTable &tbl, std::ofstream &file);

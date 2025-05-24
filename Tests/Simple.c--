@@ -2,7 +2,7 @@ void main(void){
     int x;
     int y;
 
-    x = 42;
+    x = input();
     y = x + 10;
     output(y);
 }
