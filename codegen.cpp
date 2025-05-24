@@ -8,7 +8,11 @@ void body_gen(AST ast, AST content, SymbolTable &tbl, std::ofstream &file) {
         if (content.children[1].value == "=") {
             factor_gen(content.children[2], ast, tbl, file);          
             // Save the value in the correct position of the stack
-            file << "\tsw $a0 " + std::to_string(tbl.get_symbol(content.children[0].value)->offset) + "($fp) # Save $a0 as the new value of " + content.children[0].value + " in the stack\n";
+            Symbol *symbol = tbl.get_symbol(content.children[0].value);
+            if (symbol->global)
+                file << "\tsw $a0 " << symbol->name << " # Load global variable into $a0\n";
+            else
+                file << "\tsw $a0 " << symbol->offset << "($fp) # Save $a0 as the new value of " << content.children[0].value << " in the stack\n";
         }
     }
     else if (content.value == "FACTOR") {
@@ -20,22 +24,38 @@ void body_gen(AST ast, AST content, SymbolTable &tbl, std::ofstream &file) {
     else if (content.value == "RETURN_STMT") {
         factor_gen(content.children[1], ast, tbl, file);
     }
+    else if (content.value == "ITERATION_STMT") {
+        tbl.children[tbl.current_child].current_child = 0;
+        file << tbl.children[tbl.current_child].name << "_entry:\n";
+        while_gen(content, tbl.children[tbl.current_child++], file);
+    }
+    else if (content.value == "COMPOUND_STMT") {
+        for (auto &child : content.children) {
+            body_gen(ast, child, tbl, file);
+        }
+    }
 }
 
 void call_func(AST ast, SymbolTable &tbl, std::ofstream &file) {
     std::string name = ast.children[0].value;
     // Save fp
-    file << "\t\t # Call function " + name + "\n";
+    file << "\t\t # Call function " << name << "\n";
     file << "\tsw $fp 0($sp) # Save frame pointer in the stack\n";
     file << "\taddiu $sp $sp -4 # Allocate space in the stack\n";
 
     // Special cases for input and output
     if (name == "output") {
+        Symbol *symbol = tbl.get_symbol(ast.children[2].value);
+
         // Generate the parameter
         if (ast.children[2].type == TokenType::T_NUM)
-            file << "\tli $a0 " + ast.children[2].value + " # Load constant into $a0\n";
-        else if (ast.children[2].type == TokenType::T_ID && tbl.get_symbol(ast.children[2].value)->args.empty())
-            file << "\tlw $a0 " + std::to_string(tbl.get_symbol(ast.children[2].value)->offset) + "($fp) # Load the value of " + ast.children[2].value + "from the stack\n";
+            file << "\tli $a0 " << ast.children[2].value << " # Load constant into $a0\n";
+        else if (ast.children[2].type == TokenType::T_ID && symbol->args.empty()) {
+            if (symbol->global)
+                file << "\tlw $a0 " << symbol->name << " # Load global variable into $a0\n";
+            else
+                file << "\tlw $a0 " << symbol->offset << "($fp) # Load the value of " << ast.children[2].value << "from the stack\n";
+        }
         else
             factor_gen(ast.children[2], ast, tbl, file);
 
@@ -52,30 +72,31 @@ void call_func(AST ast, SymbolTable &tbl, std::ofstream &file) {
         return;
     }
 
-    // Generate parameters for function 
-    SymbolTable *func = tbl.get_function(name);
-    int z = 4;
-    int i = 2;
-    for (auto &sym : func->symbols) {
+    // Generate the parameters
+    size_t i = 2;
+    while (ast.children[i].value != ")" && i < ast.children.size()) {
         if (ast.children[i].type == TokenType::T_NUM) // If the parameter is a constant
-            file << "\tli $a0 " + ast.children[i].value + " # Load constant into $a0\n";
+            file << "\tli $a0 " << ast.children[i].value << " # Load constant into $a0\n";
         else if (ast.children[i].type == TokenType::T_ERROR) // If the parameter is a non-terminal
             factor_gen(ast.children[i], ast, tbl, file);
-        else if (tbl.get_symbol(ast.children[i].value)->args.empty()) // If the parameter is a variable
-            file << "\tlw $a0 " + std::to_string(z) + "($fp) # Load the value of " + ast.children[i].value + " from the stack\n";
+        else if (tbl.get_symbol(ast.children[i].value)->args.empty()) { // If the parameter is a variable
+            Symbol *symbol = tbl.get_symbol(ast.children[i].value);
+            if (symbol->global)
+                file << "\tlw $a0 " << symbol->name << " # Load global variable into $a0\n";
+            else
+                file << "\tlw $a0 " << symbol->offset << "($fp) # Load the value of " << ast.children[i].value << " from the stack\n";
+        }
         else // If the parameter is a function
             call_func(ast.children[i], tbl, file);
 
         file << "\tsw $a0 0($sp) # Save the parameter in the stack\n";
         file << "\taddiu $sp $sp -4 # Allocate space in the stack\n";
 
-        sym.second.offset = z;
-        z += 4;
         i++;
     }
 
     // Return
-    file << "\tjal " + name + "_entry\n";
+    file << "\tjal " << name << "_entry\n";
 }
 
 void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file) {
@@ -83,13 +104,18 @@ void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file) {
         factor_gen(ast.children[0], ast, tbl, file);
     }
     if (ast.type == TokenType::T_ID) {
-        if (tbl.get_symbol(ast.value)->args.empty())
-            file << "\tlw $a0 " + std::to_string(tbl.get_symbol(ast.value)->offset) + "($fp) # Load the value of " + ast.value + " from the stack\n";
+        Symbol *symbol = tbl.get_symbol(ast.value);
+        if (symbol->args.empty()) {
+            if (symbol->global)
+                file << "\tlw $a0 " << symbol->name << " # Load global variable into $a0\n";
+            else
+                file << "\tlw $a0 " << symbol->offset << "($fp) # Load the value of " << ast.value << " from the stack\n";
+        }
         else
             call_func(parent, tbl, file);
     }
     else if (ast.type == TokenType::T_NUM) {
-        file << "\tli $a0 " + ast.value + " # Load constant into $a0\n";
+        file << "\tli $a0 " << ast.value << " # Load constant into $a0\n";
     }
 
     // Generate the rest of the expression
@@ -158,35 +184,51 @@ void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file) {
     }
 }
 
+void while_gen(AST ast, SymbolTable &tbl, std::ofstream &file) {
+    // Check the condition of the while statement
+    factor_gen(ast.children[2], ast, tbl, file);
+    file << "\tbeq $a0 1 " << tbl.name << "_exit # Return to the beginning of the loop\n";
+
+    // Do the content of the while
+    body_gen(ast, ast.children[4], tbl, file);
+
+    // Return to the beginning of the loop
+    file << "\tb " << tbl.name << "_entry # Return to the beginning of the loop\n";
+
+    file << tbl.name << "_exit:\n";
+}
+
 void if_gen(AST ast, SymbolTable &tbl, std::ofstream &file) {
     tbl.children[tbl.current_child].current_child = 0;
-    std::string name = tbl.children[tbl.current_child++].name;
+    std::string name = tbl.children[tbl.current_child].name;
     // Check the condition of the if statement
     factor_gen(ast.children[2], ast, tbl, file);
-    file << "\tbeq $a0 1 true_" + name + " # Branch if condition is true\n";
+    file << "\tbeq $a0 1 true_" << name << " # Branch if condition is true\n";
 
     // Generate the false branch in case there is an else 
-    file << "false_" + name + ":\n";
+    file << "false_" << name << ":\n";
 
     // Do the content of the else
     if (ast.children.size() == 7) {
-        body_gen(ast, ast.children[6], tbl, file);
+        body_gen(ast, ast.children[6], tbl.children[tbl.current_child], file);
     }
 
-    file << "\tb end_" + name + " # Branch to the end of the if statement\n";
+    file << "\tb end_" << name << " # Branch to the end of the if statement\n";
 
     // Generate the true branch
-    file << "true_" + name + ":\n";
+    file << "true_" << name << ":\n";
 
     // Do the content of the if
-    body_gen(ast, ast.children[4], tbl, file);
+    body_gen(ast, ast.children[4], tbl.children[tbl.current_child], file);
 
-    file << "end_" + name + ":\n";
+    file << "end_" << name << ":\n";
+
+    tbl.current_child++;
 }
 
 void funcgen(AST ast, SymbolTable &tbl, std::ofstream &file) {
     // Generate the entry point for each function
-    file << tbl.name + "_entry:\n";
+    file << tbl.name << "_entry:\n";
 
     file << "\tmove $fp $sp # Save frame pointer\n";
     file << "\tsw $ra 0($sp) # Save return address\n";
@@ -199,7 +241,7 @@ void funcgen(AST ast, SymbolTable &tbl, std::ofstream &file) {
 
     // Exit the function
     file << "\tlw $ra 4($sp) # Restore Return address\n";
-    file << "\taddiu $sp $sp " + std::to_string(4 * tbl.symbols.size() + 8) + " # Restore stack pointer to the last function\n";
+    file << "\taddiu $sp $sp " << 4 * tbl.symbols.size() + 8 << " # Restore stack pointer to the last function\n";
     file << "\tlw $fp 0($sp) # Restore frame pointer to the last function\n";
     file << "\tjr $ra\n";
 }
@@ -232,15 +274,11 @@ void codegen(AST ast, SymbolTable &tbl, std::ofstream &file) {
 
     // Generate the parameters for the main function
     SymbolTable *func = tbl.get_function("main");
-    int z = 4;
-    for (auto &var : func->symbols) {
+    for (size_t i = 0; i < func->symbols.size(); i++) {
         file << "\tli $a0 0 # Set the parameter to an initial value of 0\n";
 
         file << "\tsw $a0 0($sp) # Save the parameter in the stack\n";
         file << "\taddiu $sp $sp -4 # Allocate space in the stack\n";
-
-        var.second.offset = z;
-        z += 4;
     }
 
     file << "\tjal main_entry\n";

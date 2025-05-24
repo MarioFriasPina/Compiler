@@ -1,8 +1,0 @@
-int main(void){
-    int x;
-    int y;
-
-    x = x
-    y = x + 10;
-    output(y);
-}

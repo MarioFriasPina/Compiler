@@ -627,6 +627,7 @@ struct Symbol {
 
     // Values for the code generator
     int offset;
+    bool global;
 
     // Specific for arrays
     size_t size = 0;
@@ -635,7 +636,7 @@ struct Symbol {
     std::vector<std::string> args;
 
     Symbol() {}
-    Symbol(std::string name, std::string type, int line, int offset) : name(name), type(type), line(line), offset(offset) {}
+    Symbol(std::string name, std::string type, int line, int offset, bool scope) : name(name), type(type), line(line), offset(offset), global(scope) {}
 };
 
 // Symbol Table
@@ -814,6 +815,8 @@ void body_gen(AST ast, AST content, SymbolTable &tbl, std::ofstream &file);
 void call_func(AST ast, SymbolTable &tbl, std::ofstream &file);
 
 void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file);
+
+void while_gen(AST ast, SymbolTable &tbl, std::ofstream &file);
 
 void if_gen(AST ast, SymbolTable &tbl, std::ofstream &file);
 

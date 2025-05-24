@@ -7,14 +7,16 @@
  * @param tbl The symbol table
  */
 void traverse(AST &ast, SymbolTable &tbl) {
+    bool global = tbl.name == "Global" ? true : false;
+
     // Add declarations to symbol table
     if (ast.value == "DECLARATION") {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
+        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
 
-        if (ast.children[2].value == "(") {
+        if (ast.children.size() > 3 && ast.children[2].value == "(") {
             // Save void in symbol
             if (ast.children.size() > 4 && ast.children[3].value == "void") {
                 tbl.symbols[name].args.push_back("void");
@@ -28,7 +30,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
             }
             return;
 
-        } else if (ast.children[2].value == "[") {
+        } else if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = std::stoi(ast.children[3].value);
         }
     }
@@ -37,7 +39,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
+        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = 1;
@@ -50,7 +52,7 @@ void traverse(AST &ast, SymbolTable &tbl) {
         std::string type = ast.children[0].value;
         std::string name = ast.children[1].value;
 
-        tbl.symbols[name] = Symbol(name, type, ast.line, tbl.symbols.size() + 1 * 4);
+        tbl.symbols[name] = Symbol(name, type, ast.line, (tbl.symbols.size() + 1) * 4, global);
 
         if (ast.children.size() > 3 && ast.children[2].value == "[") {
             tbl.symbols[name].size = std::stoi(ast.children[3].value);
@@ -84,9 +86,9 @@ SymbolTable symbol_table(AST ast, bool print) {
     SymbolTable sym("Global", NULL, "void");
 
     // Add output and input functions to global symbol table
-    sym.symbols["output"] = Symbol("output", "void", 0, 0);
+    sym.symbols["output"] = Symbol("output", "void", 0, 0, true);
     sym.symbols["output"].args.push_back("int");
-    sym.symbols["input"] = Symbol("input", "int", 0, 0);
+    sym.symbols["input"] = Symbol("input", "int", 0, 0, true);
     sym.symbols["input"].args.push_back("void");
 
     traverse(ast, sym);
@@ -109,12 +111,13 @@ std::string typecheck(AST ast, SymbolTable &tbl) {
         }
         return symbol->type;
     }
+
     if (ast.type == TokenType::T_NUM) {
         return "int";
     }
 
     // Change scope, when entering a new one
-    if (ast.value == "DECLARATION" && ast.children[2].value == "(")
+    if (ast.value == "DECLARATION" && ast.children.size() > 3 && ast.children[2].value == "(")
         return typecheck(ast.children.back(), tbl.children[tbl.current_child++]);
 
     if (ast.value == "ITERATION_STMT" || ast.value == "SELECTION_STMT") {
