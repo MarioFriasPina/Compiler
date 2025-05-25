@@ -26,12 +26,36 @@ make
 -   `-p`: Print parser output.
 -   `-s`: Print symbol table.
 
+If no output file is specified, the assembly code will be written to `Outputs/<source_file>.asm`.
+
+Once the compiler is executed, the assembly code will be written to the specified output file or the default file.
+
+From there you can execute the assembly code on a computer with a MIPS processor or a MIPS emulator, such as [MARS](https://dpetersanderson.github.io/).
+
 ## Examples
 
 ```bash
-./compiler.exe Tests/Error.c--
-./lexer.exe Tests/Simple.c-- ouput.asm -lps
+./compiler.exe Tests/Simple.c--
+./compiler.exe Tests/Full.c-- Outputs/output.asm -lps
 ```
+
+### Output Images
+
+#### Lexer
+
+![Lexer](Documentation/Images/Lexer.png)
+
+#### Parser
+
+![Parser](Documentation/Images/Parser.png)
+
+#### Symbol Table
+
+![Symbol Table](Documentation/Images/Semantic.png)
+
+#### Assembly Code
+
+![Assembly Code](Documentation/Images/Assembly.png)
 
 ## Features
 
@@ -83,7 +107,7 @@ make fclean
 ## Contributors
 
 -   [Mario Ignacio Frias Piña](https://github.com/MarioFriasPina)
-    -   A01783559
+    -   A01782559
 
 ## License
 

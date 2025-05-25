@@ -37,6 +37,7 @@ factorial_entry:
 	move $fp $sp # Save frame pointer
 	sw $ra 0($sp) # Save return address
 	addiu $sp $sp -4 # Allocate space in the stack
+# Start of if statement if_line_2
 	lw $a0 4($fp) # Load the value of n from the stack
 	sw $a0 0($sp)
 	addiu $sp $sp -4
