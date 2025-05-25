@@ -56,9 +56,9 @@ while_line_8_entry:
 	addiu $sp $sp -4
 	lw $a0 8($fp) # Load the value of high from the stack
 	lw $t1 4($sp)
-	slt $a0 $a0 $t1 # LESS
+	slt $a0 $t1 $a0 # LESS
 	addiu $sp $sp 4
-	beq $a0 1 while_line_8_exit # Return to the beginning of the loop
+	beq $a0 0 while_line_8_exit # Exit the loop if true
 # Start of if statement if_line_9
 	lw $a0 12($fp) # Load the value of i from the stack
 	sll $a0 $a0 2 # Multiply the index by 4 to align with the word
@@ -70,7 +70,7 @@ while_line_8_entry:
 	addiu $sp $sp -4
 	lw $a0 16($fp) # Load the value of x from the stack
 	lw $t1 4($sp)
-	slt $a0 $a0 $t1 # LESS
+	slt $a0 $t1 $a0 # LESS
 	addiu $sp $sp 4
 	beq $a0 1 true_if_line_9 # Branch if condition is true
 false_if_line_9:
@@ -118,9 +118,9 @@ while_line_22_entry:
 	addiu $sp $sp -4
 	lw $a0 8($fp) # Load the value of high from the stack
 	lw $t1 4($sp)
-	sle $a0 $a0 $t1 # LESS OR EQUAL
+	slt $a0 $t1 $a0 # LESS
 	addiu $sp $sp 4
-	beq $a0 1 while_line_22_exit # Return to the beginning of the loop
+	beq $a0 0 while_line_22_exit # Exit the loop if true
 		 # Call function input
 	sw $fp 0($sp) # Save frame pointer in the stack
 	addiu $sp $sp -4 # Allocate space in the stack for fp

@@ -205,25 +205,25 @@ void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file) {
             factor_gen(ast.children[i - 1], ast, tbl, file);
             file << "\tsw $a0 0($sp)\n\taddiu $sp $sp -4\n";
             factor_gen(ast.children[i + 1], ast, tbl, file);
-            file << "\tlw $t1 4($sp)\n\tslt $a0 $t1 $a0 # GREATER\n\taddiu $sp $sp 4\n";
+            file << "\tlw $t1 4($sp)\n\tslt $a0 $a0 $t1 # GREATER\n\taddiu $sp $sp 4\n";
         }
         else if (ast.children[i].type == TokenType::T_GREATEREQUAL) {
             factor_gen(ast.children[i - 1], ast, tbl, file);
             file << "\tsw $a0 0($sp)\n\taddiu $sp $sp -4\n";
             factor_gen(ast.children[i + 1], ast, tbl, file);
-            file << "\tlw $t1 4($sp)\n\tsle $a0 $t1 $a0 # GREATER OR EQUAL\n\taddiu $sp $sp 4\n";
+            file << "\tlw $t1 4($sp)\n\tsle $a0 $a0 $t1 # GREATER OR EQUAL\n\taddiu $sp $sp 4\n";
         }
         else if (ast.children[i].type == TokenType::T_LESS) {
             factor_gen(ast.children[i - 1], ast, tbl, file);
             file << "\tsw $a0 0($sp)\n\taddiu $sp $sp -4\n";
             factor_gen(ast.children[i + 1], ast, tbl, file);
-            file << "\tlw $t1 4($sp)\n\tslt $a0 $a0 $t1 # LESS\n\taddiu $sp $sp 4\n";
+            file << "\tlw $t1 4($sp)\n\tslt $a0 $t1 $a0 # LESS\n\taddiu $sp $sp 4\n";
         }
         else if (ast.children[i].type == TokenType::T_LESSEQUAL) {
             factor_gen(ast.children[i - 1], ast, tbl, file);
             file << "\tsw $a0 0($sp)\n\taddiu $sp $sp -4\n";
             factor_gen(ast.children[i + 1], ast, tbl, file);
-            file << "\tlw $t1 4($sp)\n\tsle $a0 $a0 $t1 # LESS OR EQUAL\n\taddiu $sp $sp 4\n";
+            file << "\tlw $t1 4($sp)\n\tsle $a0 $t1 $a0 # LESS OR EQUAL\n\taddiu $sp $sp 4\n";
         }
     }
 }
@@ -231,7 +231,7 @@ void factor_gen(AST ast, AST parent, SymbolTable &tbl, std::ofstream &file) {
 void while_gen(AST ast, SymbolTable &tbl, std::ofstream &file) {
     // Check the condition of the while statement
     factor_gen(ast.children[2], ast, tbl, file);
-    file << "\tbeq $a0 1 " << tbl.name << "_exit # Return to the beginning of the loop\n";
+    file << "\tbeq $a0 0 " << tbl.name << "_exit # Exit the loop if true\n";
 
     // Do the content of the while
     body_gen(ast, ast.children[4], tbl, file);

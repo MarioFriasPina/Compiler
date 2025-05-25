@@ -5,7 +5,7 @@ SRC := $(wildcard *.cpp)
 OBJ := $(SRC:.cpp=.o)
 DEP := $(OBJ:.o=.d)
 
-TARGET := compiler
+TARGET := compiler.exe
 
 all: $(TARGET) clean
 
